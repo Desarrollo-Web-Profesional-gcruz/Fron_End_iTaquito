@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://itaquitobackend-production.up.railway.app/api';
+const API_URL = 
+  process.env.REACT_APP_API_URL || 
+  import.meta.env?.VITE_API_URL || 
+  'http://localhost:3000/api';
+
+console.log('🚀 [AuthService] API_URL:', API_URL);
 
 const api = axios.create({ baseURL: API_URL });
 
