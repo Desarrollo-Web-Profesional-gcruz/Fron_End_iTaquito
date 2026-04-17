@@ -192,10 +192,10 @@ function StatusBadge({ estado }) {
 
 /* ─── ORDER PROGRESS BAR ─────────────────────────────────────── */
 const PROGRESS_STEPS = [
-  { key: 'pendiente', label: 'Pendiente', emoji: '🕐', color: '#F59E0B' },
-  { key: 'en_preparacion', label: 'En cocina', emoji: '👨‍🍳', color: '#F97316' },
-  { key: 'listo', label: '¡Listo!', emoji: '✅', color: '#14B8A6' },
-  { key: 'entregado', label: 'Entregado', emoji: '🌮', color: '#8B5CF6' },
+  { key: 'pendiente', label: 'Pendiente', Icon: Clock, color: C.yellow },
+  { key: 'en_preparacion', label: 'En cocina', Icon: ChefHat, color: C.orange },
+  { key: 'listo', label: '¡Listo!', Icon: CheckCircle, color: C.pink },
+  { key: 'entregado', label: 'Entregado', Icon: Truck, color: C.teal },
 ];
 
 function OrderProgressBar({ currentStatus }) {
@@ -203,64 +203,81 @@ function OrderProgressBar({ currentStatus }) {
   const activeIdx = currentIdx >= 0 ? currentIdx : 0;
 
   return (
-    <div style={{ padding: '14px 0 6px', marginBottom: '10px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', position: 'relative' }}>
+    <div style={{ padding: '20px 0 10px', marginBottom: '15px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', position: 'relative', width: '100%' }}>
+        
+        {/* Track Line (Background) */}
+        <div style={{
+          position: 'absolute', top: '18px', left: '12.5%', right: '12.5%',
+          height: '4px', background: C.border + '44', borderRadius: '4px', zIndex: 0
+        }} />
+
+        {/* Active Progress Line */}
+        <div style={{
+          position: 'absolute', top: '18px', left: '12.5%',
+          width: `${(activeIdx / (PROGRESS_STEPS.length - 1)) * 75}%`,
+          height: '4px', background: `linear-gradient(90deg, ${PROGRESS_STEPS[0].color}, ${PROGRESS_STEPS[activeIdx].color})`,
+          borderRadius: '4px', zIndex: 1, transition: 'width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          boxShadow: `0 0 12px ${PROGRESS_STEPS[activeIdx].color}44`
+        }}>
+          {/* Animated glow that travels along the line */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+            animation: 'flowGlow 2.5s infinite linear',
+            borderRadius: '4px'
+          }} />
+        </div>
+
         {PROGRESS_STEPS.map((step, idx) => {
           const isCompleted = idx < activeIdx;
           const isActive = idx === activeIdx;
-          const isPending = idx > activeIdx;
+          const StepIcon = step.Icon;
 
           return (
             <div key={step.key} style={{
               flex: 1, display: 'flex', flexDirection: 'column',
               alignItems: 'center', position: 'relative', zIndex: 2,
             }}>
-              {/* Connector line (left side) */}
-              {idx > 0 && (
-                <div style={{
-                  position: 'absolute', top: '16px',
-                  right: '50%', width: '100%', height: '3px',
-                  background: isCompleted || isActive
-                    ? `linear-gradient(90deg, ${PROGRESS_STEPS[idx - 1].color}, ${step.color})`
-                    : C.border,
-                  transition: 'background 0.5s ease',
-                  zIndex: 0,
-                }} />
-              )}
-
-              {/* Circle */}
+              {/* Circle / Icon Container */}
               <div style={{
-                width: '34px', height: '34px',
-                borderRadius: '50%',
+                width: '38px', height: '38px',
+                borderRadius: '12px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '16px', lineHeight: 1,
-                background: isCompleted
-                  ? `${step.color}22`
-                  : isActive
-                    ? `${step.color}18`
-                    : C.bg,
-                border: `2.5px solid ${isCompleted ? step.color : isActive ? step.color : C.border}`,
+                background: isActive 
+                  ? `${step.color}22` 
+                  : isCompleted ? `${step.color}15` : C.bgCard,
+                backdropFilter: 'blur(4px)',
+                border: `2px solid ${isActive || isCompleted ? step.color : C.border}`,
                 boxShadow: isActive
-                  ? `0 0 0 4px ${step.color}20, 0 4px 12px ${step.color}30`
+                  ? `0 0 15px ${step.color}33, inset 0 0 8px ${step.color}11`
                   : 'none',
-                transition: 'all 0.4s ease',
+                transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 position: 'relative', zIndex: 2,
-                animation: isActive ? 'progressPulse 2s ease-in-out infinite' : 'none',
+                transform: isActive ? 'scale(1.1) translateY(-2px)' : 'scale(1)',
+                animation: isActive ? 'progressPulsePremium 2.5s ease-in-out infinite' : 'none',
               }}>
-                {step.emoji}
+                <StepIcon 
+                  size={18} 
+                  color={isActive || isCompleted ? step.color : C.textMuted} 
+                  strokeWidth={isActive ? 2.5 : 2}
+                  style={{ transition: 'all 0.4s' }}
+                />
               </div>
 
               {/* Label */}
               <span style={{
-                marginTop: '6px',
-                fontSize: '10px',
+                marginTop: '10px',
+                fontSize: '11px',
                 fontWeight: isActive ? '800' : '600',
-                color: isCompleted ? step.color : isActive ? step.color : C.textMuted,
+                color: isActive || isCompleted ? step.color : C.textMuted,
                 fontFamily: FONT,
                 textAlign: 'center',
-                transition: 'all 0.3s ease',
+                transition: 'all 0.4s ease',
                 lineHeight: 1.2,
-                maxWidth: '70px',
+                maxWidth: '80px',
+                filter: isActive ? 'none' : 'grayscale(0.5)',
+                opacity: isActive || isCompleted ? 1 : 0.7
               }}>
                 {step.label}
               </span>
@@ -269,30 +286,32 @@ function OrderProgressBar({ currentStatus }) {
         })}
       </div>
 
-      {/* Active status message */}
-      {activeIdx >= 0 && activeIdx < PROGRESS_STEPS.length && currentStatus !== 'cancelado' && currentStatus !== 'entregado' && (
+      {/* Dynamic Status Message */}
+      {currentStatus !== 'cancelado' && (
         <div style={{
-          marginTop: '10px', textAlign: 'center',
-          animation: 'progressFadeIn 0.5s ease',
+          marginTop: '16px', textAlign: 'center',
+          animation: 'progressFadeIn 0.8s ease',
         }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px',
-            background: `${PROGRESS_STEPS[activeIdx].color}10`,
-            border: `1px solid ${PROGRESS_STEPS[activeIdx].color}30`,
-            borderRadius: '20px', padding: '4px 14px',
-            fontSize: '11px', fontWeight: '700',
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            background: `${PROGRESS_STEPS[activeIdx].color}08`,
+            border: `1.5px solid ${PROGRESS_STEPS[activeIdx].color}20`,
+            borderRadius: '12px', padding: '6px 16px',
+            fontSize: '12px', fontWeight: '700',
             color: PROGRESS_STEPS[activeIdx].color,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
           }}>
-            <span style={{
-              width: '6px', height: '6px', borderRadius: '50%',
+            <div style={{
+              width: '8px', height: '8px', borderRadius: '50%',
               background: PROGRESS_STEPS[activeIdx].color,
-              animation: 'progressBlink 1.4s ease-in-out infinite',
+              animation: 'progressBlink 1.5s ease-in-out infinite',
+              boxShadow: `0 0 8px ${PROGRESS_STEPS[activeIdx].color}aa`
             }} />
-            {activeIdx === 0 && 'Tu pedido fue recibido'}
-            {activeIdx === 1 && 'Se está preparando tu pedido'}
-            {activeIdx === 2 && '¡Tu pedido está listo para recoger!'}
-            {activeIdx === 3 && 'Pedido entregado'}
-          </span>
+            {activeIdx === 0 && 'Recibido en sistema'}
+            {activeIdx === 1 && 'Preparando con amor iTaquito'}
+            {activeIdx === 2 && '¡Tu orden está calientita y lista!'}
+            {activeIdx === 3 && 'Pedido disfrutado'}
+          </div>
         </div>
       )}
     </div>
@@ -664,6 +683,27 @@ function AdminOrdersView() {
       <style>{`
         @keyframes spin    { to { transform: rotate(360deg); } }
         @keyframes slideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        
+        @keyframes progressPulsePremium {
+          0% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+          50% { box-shadow: 0 0 0 8px rgba(0,0,0,0.08); }
+          100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+        }
+
+        @keyframes progressBlink {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(0.85); }
+        }
+
+        @keyframes progressFadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes flowGlow {
+          from { transform: translateX(-100%); }
+          to { transform: translateX(200%); }
+        }
       `}</style>
     </div>
   );
