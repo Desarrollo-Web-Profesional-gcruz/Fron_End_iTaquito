@@ -10,7 +10,7 @@ import { C, FONT, glow } from '../../../styles/designTokens';
 import { usePedirCuenta } from '../../../hooks/usePedirCuenta';
 import { PayConfirmModal } from '../components/PayConfirmModal';
 import { EmojiRatingModal } from '../components/EmojiRatingModal';
-import { EmailTicketModal } from '../components/EmailTicketModal';
+import { TicketShareModal } from '../components/TicketShareModal';
 import ConfirmModal from '../../../components/common/ConfirmModal';
 import {
   Search, SlidersHorizontal, ShoppingBag, UtensilsCrossed,
@@ -742,13 +742,12 @@ const MenuMesa = () => {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT, color: C.textPrimary }}>
       
-      <EmailTicketModal 
+      <TicketShareModal 
         isOpen={showEmailModal}
         onClose={handleCloseEmailModal}
         items={ticketItems}
         total={ticketTotal}
         tableName={localStorage.getItem('meseroMesaNombre') || 'Mesa'}
-        sessionToken={localStorage.getItem('mesaSessionToken')}
       />
       {/* ─── TRANSICION END ─── */}
       {animatingEnd && (

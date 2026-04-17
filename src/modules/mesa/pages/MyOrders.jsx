@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 import { EmojiRatingModal } from '../components/EmojiRatingModal';
-import { EmailTicketModal } from '../components/EmailTicketModal';
+import { TicketShareModal } from '../components/TicketShareModal';
 
 /* ─── ESTADO CONFIG ──────────────────────────────────────────── */
 const ESTADO = {
@@ -851,13 +851,12 @@ function ClientOrdersView() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT, color: C.textPrimary }}>
-      <EmailTicketModal 
+      <TicketShareModal 
         isOpen={showEmailModal}
         onClose={handleCloseEmailModal}
         items={ticketItems}
         total={ticketTotal}
         tableName={localStorage.getItem('meseroMesaNombre') || 'Mesa'}
-        sessionToken={localStorage.getItem('mesaSessionToken')}
       />
       <ClientHeader totalItems={totalItems} onLogout={logout} />
 

@@ -1,44 +1,52 @@
 import React, { useState } from 'react';
-import { Mail, CheckCircle, X, Loader, UtensilsCrossed, ArrowRight, Receipt, Send } from 'lucide-react';
-import { C, FONT, glow } from '../../../styles/designTokens';
+import { CheckCircle, X, Send, MessageCircle, Smartphone, Loader } from 'lucide-react';
 import { ordersService } from '../../../services/orders';
-import Button from '../../../components/common/Button';
+import { C, FONT } from '../../../styles/designTokens';
 
 /**
- * Modal que ofrece al cliente enviar su ticket visual por correo electrónico.
+ * Modal que ofrece al cliente enviar su ticket visual por WhatsApp automáticamente.
+ * Utiliza la API de UltraMsg en el backend para un envío silencioso.
  */
-export const EmailTicketModal = ({ isOpen, onClose, items, total, tableName, sessionToken }) => {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+export const TicketShareModal = ({ isOpen, onClose, items, total, tableName }) => {
+  // Inicializamos con '+52' para México
+  const [phone, setPhone] = useState('+52');
   const [error, setError] = useState('');
   const [isHovered, setIsHovered] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSend = async () => {
-    if (!email || !email.includes('@')) {
-      setError('Por favor ingresa un correo electrónico válido.');
+  const handleShare = async () => {
+    // Validar formato básico (ej: +52 seguido de 10 dígitos)
+    const cleanPhone = phone.replace(/\s+/g, '').replace('+', '');
+    
+    if (cleanPhone.length < 10) {
+      setError('Por favor ingresa un número válido (ej: +52 1234567890)');
       return;
     }
+
     setLoading(true);
     setError('');
+
     try {
-      await ordersService.sendTicketEmail({
-        email,
+      await ordersService.sendTicketWhatsApp({
+        phone: cleanPhone,
         tableName,
         items,
-        total,
-        sessionToken
+        total
       });
+      
       setSent(true);
-      // Tras 2.5 segundos de éxito, cerrar modal
       setTimeout(() => {
         onClose();
-      }, 2500);
+        setSent(false); // Reset para la próxima vez
+        setLoading(false);
+      }, 3500);
+
     } catch (e) {
-      setError('No se pudo enviar el correo. Intenta de nuevo.');
-    } finally {
+      console.error(e);
+      setError('Hubo un error al enviar el WhatsApp automático. Verifica tu conexión.');
       setLoading(false);
     }
   };
@@ -58,7 +66,7 @@ export const EmailTicketModal = ({ isOpen, onClose, items, total, tableName, ses
         position: 'relative'
       }} onClick={e => e.stopPropagation()}>
         
-        {/* Decorative Header */}
+        {/* Decorative Header (WhatsApp Style) */}
         <div style={{ 
           background: `linear-gradient(135deg, ${C.pink}, ${C.pinkDim})`, 
           padding: '32px 24px', textAlign: 'center', position: 'relative' 
@@ -75,14 +83,14 @@ export const EmailTicketModal = ({ isOpen, onClose, items, total, tableName, ses
             display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
             backdropFilter: 'blur(4px)', border: '1.5px solid rgba(255,255,255,0.3)'
           }}>
-            <Receipt size={32} color="#fff" />
+            <MessageCircle size={32} color="#fff" />
           </div>
           
           <h2 style={{ color: '#fff', margin: 0, fontSize: '26px', fontWeight: '900', letterSpacing: '-0.8px', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-            ¡Tu cuenta! 🌮
+            ¡Ticket Digital! 🌮
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.9)', margin: '6px 0 0', fontSize: '14px', fontWeight: '600' }}>
-            Envía el resumen de tu consumo directo a tu mail
+            Recíbelo al instante en tu WhatsApp
           </p>
         </div>
 
@@ -97,9 +105,9 @@ export const EmailTicketModal = ({ isOpen, onClose, items, total, tableName, ses
               }}>
                 <CheckCircle size={44} color={C.teal} />
               </div>
-              <h3 style={{ color: C.textPrimary, fontSize: '22px', fontWeight: '900', margin: '0 0 8px' }}>¡Enviado!</h3>
+              <h3 style={{ color: C.textPrimary, fontSize: '22px', fontWeight: '900', margin: '0 0 8px' }}>¡Redirigiendo!</h3>
               <p style={{ color: C.textSecondary, fontSize: '15px', margin: 0, lineHeight: 1.5 }}>
-                Recibirás un correo con el detalle de tu mesa en unos segundos.
+                Hemos generado tu ticket. Envíalo en el chat que se acaba de abrir.
               </p>
             </div>
           ) : (
@@ -143,19 +151,19 @@ export const EmailTicketModal = ({ isOpen, onClose, items, total, tableName, ses
 
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', color: C.textSecondary, fontSize: '13px', fontWeight: '700', marginBottom: '10px' }}>
-                  ¿A qué dirección lo enviamos?
+                  ¿A qué número lo enviamos?
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Mail size={18} color={error ? C.orange : (isHovered ? C.pink : C.textMuted)} 
+                  <Smartphone size={18} color={error ? C.orange : (isHovered ? C.pink : C.textMuted)} 
                     style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', transition: 'all 0.3s' }} 
                   />
                   <input
-                    type="email"
-                    value={email}
+                    type="tel"
+                    value={phone}
                     onFocus={() => setIsHovered(true)}
                     onBlur={() => setIsHovered(false)}
-                    onChange={e => {setEmail(e.target.value); if(error) setError('');}}
-                    placeholder="ejemplo@correo.com"
+                    onChange={e => {setPhone(e.target.value); if(error) setError('');}}
+                    placeholder="+52 123 456 7890"
                     style={{
                       width: '100%', boxSizing: 'border-box', background: C.bg,
                       border: `1.5px solid ${error ? C.orange : C.border}`, borderRadius: '16px',
@@ -174,23 +182,38 @@ export const EmailTicketModal = ({ isOpen, onClose, items, total, tableName, ses
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
-                <Button 
-                  variant="secondary" 
+                <button 
                   onClick={onClose} 
-                  disabled={loading}
-                  style={{ flex: 1, height: '54px', borderRadius: '16px' }}
+                  style={{ 
+                    flex: 1, height: '54px', borderRadius: '16px', background: 'transparent',
+                    border: `1.5px solid ${C.border}`, color: C.textSecondary, fontWeight: '700',
+                    cursor: 'pointer', fontFamily: FONT
+                  }}
                 >
                   Cerrar
-                </Button>
-                <Button 
-                  variant="primary" 
-                  onClick={handleSend} 
+                </button>
+                <button 
+                  onClick={handleShare} 
                   disabled={loading}
-                  icon={loading ? <Loader size={20} className="spin" /> : <Send size={20} />}
-                  style={{ flex: 2, height: '54px', borderRadius: '16px' }}
+                  style={{ 
+                    flex: 2, height: '54px', borderRadius: '16px', 
+                    background: loading ? C.bgAccent : C.pink,
+                    border: 'none', color: loading ? C.textMuted : '#fff', 
+                    fontWeight: '800', fontSize: '15px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    cursor: loading ? 'not-allowed' : 'pointer', 
+                    fontFamily: FONT, transition: 'all 0.2s',
+                    boxShadow: loading ? 'none' : `0 4px 12px ${C.pink}33`
+                  }}
+                  onMouseEnter={e => { if(!loading) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={e => { if(!loading) e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
-                  {loading ? 'Enviando...' : 'Enviar Ticket'}
-                </Button>
+                  {loading ? (
+                    <><Loader size={18} style={{ animation: 'spin 1.5s linear infinite' }} /> Enviando...</>
+                  ) : (
+                    <><Send size={18} /> Enviar Ticket</>
+                  )}
+                </button>
               </div>
             </>
           )}
@@ -198,8 +221,6 @@ export const EmailTicketModal = ({ isOpen, onClose, items, total, tableName, ses
       </div>
 
       <style>{`
-        .spin { animation: spin 1.2s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes modalEntrance { 
           from { opacity: 0; transform: translateY(20px) scale(0.96); } 
           to { opacity: 1; transform: translateY(0) scale(1); } 
@@ -213,4 +234,3 @@ export const EmailTicketModal = ({ isOpen, onClose, items, total, tableName, ses
     </div>
   );
 };
-

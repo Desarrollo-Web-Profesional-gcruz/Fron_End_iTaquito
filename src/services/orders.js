@@ -58,4 +58,10 @@ export const ordersService = {
     const { data } = await api.post('/orders/send-ticket-email', { email, tableName, items, total, sessionToken });
     return data;
   },
+
+  /* Enviar ticket por WhatsApp automático */
+  sendTicketWhatsApp: async ({ phone, tableName, items, total }) => {
+    const { data } = await api.post('/orders/send-ticket-whatsapp', { phone, tableName, items, total });
+    return data;
+  },
 };

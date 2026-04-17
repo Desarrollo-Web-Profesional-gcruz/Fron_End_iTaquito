@@ -14,7 +14,7 @@ import {
   Loader, LogOut, MapPin, Utensils, ClipboardList, Pencil, X, Music, BellRing,
 } from 'lucide-react';
 import { EmojiRatingModal } from '../components/EmojiRatingModal';
-import { EmailTicketModal } from '../components/EmailTicketModal';
+import { TicketShareModal } from '../components/TicketShareModal';
 
 /* ─── PAPEL PICADO ───────────────────────────────────────────── */
 const PICADO = [C.pink, C.orange, C.yellow, C.teal, C.purple, C.pinkDim, C.orangeDim, C.tealDim];
@@ -488,13 +488,12 @@ const MyOrder = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT, color: C.textPrimary }}>
-      <EmailTicketModal 
+      <TicketShareModal 
         isOpen={showEmailModal}
         onClose={handleCloseEmailModal}
         items={ticketItems}
         total={ticketTotal}
         tableName={localStorage.getItem('meseroMesaNombre') || 'Mesa'}
-        sessionToken={localStorage.getItem('mesaSessionToken')}
       />
       <ClientHeader onLogout={handleLogoutRequest} />
 
