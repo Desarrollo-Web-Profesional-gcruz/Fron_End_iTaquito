@@ -9,6 +9,7 @@ import { ordersService } from '../../../services/orders';
 import { C, FONT, glow } from '../../../styles/designTokens';
 import { usePedirCuenta } from '../../../hooks/usePedirCuenta';
 import { PayConfirmModal } from '../components/PayConfirmModal';
+import { EmojiRatingModal } from '../components/EmojiRatingModal';
 import {
   Search, SlidersHorizontal, ShoppingBag, UtensilsCrossed,
   Plus, Minus, Check, X, ChevronUp, ChevronDown, AlertCircle,
@@ -433,6 +434,10 @@ const MenuMesa = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [loggingOut,      setLoggingOut]      = useState(false);
 
+  // ── Emoji Rating ──
+  const [showEmojiRating, setShowEmojiRating]  = useState(false);
+  const [pendingAction,   setPendingAction]    = useState(null); // 'logout' | 'pay'
+
   const [products,    setProducts]    = useState([]);
   const [categories,  setCategories]  = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -464,8 +469,14 @@ const MenuMesa = () => {
   const handleConfirmarPago  = async () => {
     setAnimatingEnd(true);
     const ok = await ejecutarPedirCuenta();
-    if (ok) setShowPayModal(false);
-    else setAnimatingEnd(false);
+    if (ok) {
+      setShowPayModal(false);
+      // Mostrar emoji rating tras pagar
+      setPendingAction('pay');
+      setShowEmojiRating(true);
+    } else {
+      setAnimatingEnd(false);
+    }
   };
 
   // Si el mesero navega sin mesa seleccionada (ej: refresh), redirigir a /tables
@@ -523,23 +534,34 @@ const MenuMesa = () => {
   // ── NUEVO: abre modal antes de cerrar sesión ──
   const handleLogoutRequest = () => setShowLogoutModal(true);
 
-  // ── NUEVO: ejecuta el logout real tras confirmar ──
+  // ── ejecuta el logout real tras confirmar ──
   const handleLogoutConfirm = async () => {
-    setLoggingOut(true);
-    try {
-      if (iMesaId && mesaEstado === 'ocupada') {
-        await tablesService.changeStatus(iMesaId, 'disponible');
-        localStorage.removeItem('mesaSessionToken');
-        if (isMesero) {
-          localStorage.removeItem('meseroMesaId');
-          localStorage.removeItem('meseroMesaNombre');
-        }
-      }
-    } catch { /* silently fail */ }
-    clearAllPlates();
-    logout();
-    setLoggingOut(false);
     setShowLogoutModal(false);
+    // Mostrar emoji rating antes de hacer logout
+    setPendingAction('logout');
+    setShowEmojiRating(true);
+  };
+
+  // ── Ejecuta la acción pendiente tras el rating ──
+  const handleEmojiComplete = async () => {
+    setShowEmojiRating(false);
+    if (pendingAction === 'logout') {
+      setLoggingOut(true);
+      try {
+        if (iMesaId && mesaEstado === 'ocupada') {
+          await tablesService.changeStatus(iMesaId, 'disponible');
+          localStorage.removeItem('mesaSessionToken');
+          if (isMesero) {
+            localStorage.removeItem('meseroMesaId');
+            localStorage.removeItem('meseroMesaNombre');
+          }
+        }
+      } catch { /* silently fail */ }
+      clearAllPlates();
+      logout();
+      setLoggingOut(false);
+    }
+    setPendingAction(null);
   };
 
   useEffect(() => {
@@ -748,7 +770,8 @@ const MenuMesa = () => {
           )}
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px 18px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+            {/* ─── SEARCH + SORT BAR ─── */}
+            <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '14px 18px', marginBottom: '12px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
               <SlidersHorizontal size={15} color={C.textMuted} style={{ flexShrink: 0 }} />
 
               <div style={{ position: 'relative', flex: '1 1 200px', display: 'flex', alignItems: 'center' }}>
@@ -759,12 +782,6 @@ const MenuMesa = () => {
                   style={{ width: '100%', boxSizing: 'border-box', background: C.bg, border: `1.5px solid ${searchFocus ? C.pink : C.border}`, borderRadius: '9px', padding: '8px 32px 8px 30px', color: C.textPrimary, fontFamily: FONT, fontWeight: '600', fontSize: '13px', outline: 'none', transition: 'border-color 0.18s' }} />
                 {search && <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, display: 'flex', padding: '2px' }}><X size={13} /></button>}
               </div>
-
-              <select value={catId} onChange={e => setCatId(e.target.value)}
-                style={{ background: C.bg, border: `1.5px solid ${catId ? C.pink : C.border}`, borderRadius: '9px', padding: '8px 32px 8px 12px', color: catId ? C.textPrimary : C.textMuted, fontFamily: FONT, fontWeight: '600', fontSize: '13px', outline: 'none', cursor: 'pointer', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C5040' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'calc(100% - 10px) center', minWidth: '150px' }}>
-                <option value="">Todas las categorías</option>
-                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.sNombre}</option>)}
-              </select>
 
               <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                 {[{ val: 'asc', Icon: ChevronUp, label: 'Menor precio' }, { val: 'desc', Icon: ChevronDown, label: 'Mayor precio' }].map(({ val, Icon, label }) => (
@@ -783,6 +800,57 @@ const MenuMesa = () => {
                   <X size={12} /> Limpiar
                 </button>
               )}
+            </div>
+
+            {/* ─── CATEGORY PILLS ─── */}
+            <div style={{
+              display: 'flex', gap: '8px', marginBottom: '20px',
+              overflowX: 'auto', paddingBottom: '4px',
+              scrollbarWidth: 'none', msOverflowStyle: 'none',
+            }} className="hide-scroll">
+              {/* Pill "Todos" */}
+              {[{ id: '', label: '🔥 Todos' }, ...categories.map(cat => ({ id: String(cat.id), label: cat.sNombre }))].map((pill) => {
+                const isActive = catId === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    id={`category-pill-${pill.id || 'all'}`}
+                    onClick={() => setCatId(pill.id)}
+                    style={{
+                      background: isActive ? C.pink : C.bgCard,
+                      border: `1.5px solid ${isActive ? C.pink : C.border}`,
+                      borderRadius: '24px',
+                      padding: '8px 18px',
+                      color: isActive ? '#fff' : C.textSecondary,
+                      fontFamily: FONT,
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      transition: 'all 0.2s ease',
+                      boxShadow: isActive ? `0 4px 14px ${C.pink}44` : '0 1px 3px rgba(0,0,0,0.06)',
+                      transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.borderColor = C.pink;
+                        e.currentTarget.style.color = C.pink;
+                        e.currentTarget.style.background = `${C.pink}10`;
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.borderColor = C.border;
+                        e.currentTarget.style.color = C.textSecondary;
+                        e.currentTarget.style.background = C.bgCard;
+                      }
+                    }}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
             </div>
 
             {error ? (
@@ -883,6 +951,13 @@ const MenuMesa = () => {
         onCancel={handleCerrarPayModal}
         loading={payLoading}
         error={payError}
+      />
+
+      {/* ── Emoji Rating Modal ── */}
+      <EmojiRatingModal
+        isOpen={showEmojiRating}
+        iMesaId={iMesaId}
+        onComplete={handleEmojiComplete}
       />
 
       <style>{`

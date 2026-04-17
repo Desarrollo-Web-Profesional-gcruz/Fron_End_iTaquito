@@ -231,7 +231,7 @@ const TaqueroPanel = () => {
   useEffect(() => {
     loadActiveOrders();
     // Auto-refresh cada 15 segundos
-    const interval = setInterval(loadActiveOrders, 15000);
+    const interval = setInterval(loadActiveOrders, 5000);
     return () => clearInterval(interval);
   }, [loadActiveOrders]);
 

@@ -8,14 +8,15 @@ import { C, FONT, glow } from '../../../styles/designTokens';
 import { usePedirCuenta } from '../../../hooks/usePedirCuenta';
 import { PayConfirmModal } from '../components/PayConfirmModal';
 import ConfirmModal from '../../../components/common/ConfirmModal';
-import {
-  ClipboardList, UtensilsCrossed, ShoppingBag,
+import { 
+  ClipboardList, UtensilsCrossed, ShoppingBag, 
   Clock, CheckCircle, ChefHat, Truck, XCircle,
   RefreshCw, MapPin, LogOut, Utensils, Plus,
   Filter, Search, ChevronDown, AlertCircle,
-  ArrowRight, Calendar, TableProperties, Loader
+  ArrowRight, Calendar, TableProperties, Loader 
 } from 'lucide-react';
 import Breadcrumb from '../../../components/layout/Breadcrumb';
+import { EmojiRatingModal } from '../components/EmojiRatingModal';
 
 /* ─── ESTADO CONFIG ──────────────────────────────────────────── */
 const ESTADO = {
@@ -117,10 +118,121 @@ function StatusBadge({ estado }) {
   );
 }
 
+/* ─── ORDER PROGRESS BAR ─────────────────────────────────────── */
+const PROGRESS_STEPS = [
+  { key: 'pendiente',      label: 'Pendiente',   emoji: '🕐', color: '#F59E0B' },
+  { key: 'en_preparacion', label: 'En cocina',    emoji: '👨‍🍳', color: '#F97316' },
+  { key: 'listo',          label: '¡Listo!',      emoji: '✅', color: '#14B8A6' },
+  { key: 'entregado',      label: 'Entregado',    emoji: '🌮', color: '#8B5CF6' },
+];
+
+function OrderProgressBar({ currentStatus }) {
+  const currentIdx = PROGRESS_STEPS.findIndex(s => s.key === currentStatus);
+  const activeIdx = currentIdx >= 0 ? currentIdx : 0;
+
+  return (
+    <div style={{ padding: '14px 0 6px', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', position: 'relative' }}>
+        {PROGRESS_STEPS.map((step, idx) => {
+          const isCompleted = idx < activeIdx;
+          const isActive    = idx === activeIdx;
+          const isPending   = idx > activeIdx;
+
+          return (
+            <div key={step.key} style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', position: 'relative', zIndex: 2,
+            }}>
+              {/* Connector line (left side) */}
+              {idx > 0 && (
+                <div style={{
+                  position: 'absolute', top: '16px',
+                  right: '50%', width: '100%', height: '3px',
+                  background: isCompleted || isActive
+                    ? `linear-gradient(90deg, ${PROGRESS_STEPS[idx - 1].color}, ${step.color})`
+                    : C.border,
+                  transition: 'background 0.5s ease',
+                  zIndex: 0,
+                }} />
+              )}
+
+              {/* Circle */}
+              <div style={{
+                width: '34px', height: '34px',
+                borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '16px', lineHeight: 1,
+                background: isCompleted
+                  ? `${step.color}22`
+                  : isActive
+                    ? `${step.color}18`
+                    : C.bg,
+                border: `2.5px solid ${isCompleted ? step.color : isActive ? step.color : C.border}`,
+                boxShadow: isActive
+                  ? `0 0 0 4px ${step.color}20, 0 4px 12px ${step.color}30`
+                  : 'none',
+                transition: 'all 0.4s ease',
+                position: 'relative', zIndex: 2,
+                animation: isActive ? 'progressPulse 2s ease-in-out infinite' : 'none',
+              }}>
+                {step.emoji}
+              </div>
+
+              {/* Label */}
+              <span style={{
+                marginTop: '6px',
+                fontSize: '10px',
+                fontWeight: isActive ? '800' : '600',
+                color: isCompleted ? step.color : isActive ? step.color : C.textMuted,
+                fontFamily: FONT,
+                textAlign: 'center',
+                transition: 'all 0.3s ease',
+                lineHeight: 1.2,
+                maxWidth: '70px',
+              }}>
+                {step.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Active status message */}
+      {activeIdx >= 0 && activeIdx < PROGRESS_STEPS.length && currentStatus !== 'cancelado' && currentStatus !== 'entregado' && (
+        <div style={{
+          marginTop: '10px', textAlign: 'center',
+          animation: 'progressFadeIn 0.5s ease',
+        }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            background: `${PROGRESS_STEPS[activeIdx].color}10`,
+            border: `1px solid ${PROGRESS_STEPS[activeIdx].color}30`,
+            borderRadius: '20px', padding: '4px 14px',
+            fontSize: '11px', fontWeight: '700',
+            color: PROGRESS_STEPS[activeIdx].color,
+          }}>
+            <span style={{
+              width: '6px', height: '6px', borderRadius: '50%',
+              background: PROGRESS_STEPS[activeIdx].color,
+              animation: 'progressBlink 1.4s ease-in-out infinite',
+            }} />
+            {activeIdx === 0 && 'Tu pedido fue recibido'}
+            {activeIdx === 1 && 'Se está preparando tu pedido'}
+            {activeIdx === 2 && '¡Tu pedido está listo para recoger!'}
+            {activeIdx === 3 && 'Pedido entregado'}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── ORDER CARD (cliente) ───────────────────────────────────── */
 function ClientOrderCard({ order }) {
   const [open, setOpen] = useState(false);
   const estado = ESTADO[order.sEstado] || ESTADO.pendiente;
+  const isActive = ['pendiente', 'en_preparacion', 'listo'].includes(order.sEstado);
+
   return (
     <div style={{ background: C.bgCard, border: `1.5px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden' }}>
       <div style={{ height: '3px', background: estado.color }} />
@@ -134,6 +246,12 @@ function ClientOrderCard({ order }) {
           </div>
           <StatusBadge estado={order.sEstado} />
         </div>
+
+        {/* ─── Progress Bar para pedidos activos ─── */}
+        {isActive && (
+          <OrderProgressBar currentStatus={order.sEstado} />
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
           {(order.items || []).slice(0, open ? undefined : 3).map((item, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -312,7 +430,7 @@ function AdminOrdersView() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => {
-    const t = setInterval(loadData, 30000);
+    const t = setInterval(loadData, 5000);
     return () => clearInterval(t);
   }, [loadData]);
 
@@ -489,6 +607,11 @@ function ClientOrdersView() {
   const [animatingEnd, setAnimatingEnd] = useState(false);
   const [error,        setError]        = useState('');
   const [showPayModal,    setShowPayModal]    = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // ── Emoji Rating ──
+  const [showEmojiRating, setShowEmojiRating]  = useState(false);
+  const [pendingAction,   setPendingAction]    = useState(null); // 'logout' | 'pay'
 
   const iMesaId = getMesaId();
 
@@ -520,12 +643,33 @@ function ClientOrdersView() {
 
   const handleAbrirPayModal  = () => { clearPayError(); setShowPayModal(true); };
   const handleCerrarPayModal = () => { if (!payLoading) setShowPayModal(false); };
-  const handleConfirmarPago  = async () => { const ok = await ejecutarPago(); if (ok) setShowPayModal(false); };
+  const handleConfirmarPago  = async () => { 
+    const ok = await ejecutarPago(); 
+    if (ok) {
+      setShowPayModal(false);
+      setPendingAction('pay');
+      setShowEmojiRating(true);
+    }
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutModal(false);
+    setPendingAction('logout');
+    setShowEmojiRating(true);
+  };
+
+  const handleEmojiComplete = async () => {
+    setShowEmojiRating(false);
+    if (pendingAction === 'logout') {
+      logout();
+    }
+    setPendingAction(null);
+  };
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useEffect(() => {
     if (!iMesaId) return;
-    const interval = setInterval(loadOrders, 30000);
+    const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
   }, [iMesaId, loadOrders]);
 
@@ -631,12 +775,30 @@ function ClientOrdersView() {
       </button>
 
       <PayConfirmModal isOpen={showPayModal} onConfirm={handleConfirmarPago} onCancel={handleCerrarPayModal} loading={payLoading} error={payError} />
+      
+      <EmojiRatingModal 
+        isOpen={showEmojiRating} 
+        iMesaId={iMesaId}
+        onComplete={handleEmojiComplete} 
+      />
 
       <style>{`
         @keyframes spin       { to { transform: rotate(360deg); } }
         @keyframes fadeInOut  { 0% { opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
         @keyframes bounceUp   { from { transform: translateY(0); } to { transform: translateY(-30px); } }
         @keyframes scaleUp    { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes progressPulse {
+          0%, 100% { box-shadow: 0 0 0 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.1); transform: scale(1); }
+          50%      { box-shadow: 0 0 0 8px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.15); transform: scale(1.1); }
+        }
+        @keyframes progressBlink {
+          0%, 100% { opacity: 1; }
+          50%      { opacity: 0.3; }
+        }
+        @keyframes progressFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
     </div>
   );
