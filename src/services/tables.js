@@ -30,5 +30,15 @@ export const tablesService = {
   async changeStatus(id, estado) {
     const response = await api.patch(`/tables/${id}/estado`, { sEstado: estado });
     return response.data;
+  },
+
+  async llamarMesero(id, contexto) {
+    const response = await api.post(`/tables/${id}/llamar`, { contexto });
+    return response.data;
+  },
+
+  async atenderLlamada(id) {
+    const response = await api.post(`/tables/${id}/atender`);
+    return response.data;
   }
 };

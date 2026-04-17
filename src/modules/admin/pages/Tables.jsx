@@ -13,6 +13,8 @@ import {
   Search, SlidersHorizontal, ClipboardList
 } from 'lucide-react';
 import Breadcrumb from '../../../components/layout/Breadcrumb';
+import { useRef } from 'react';
+import { BellRing as Bell } from 'lucide-react';
 
 /* ─── STAT MINI CARD ─────────────────────────────────────────── */
 function MiniStat({ label, value, color, Icon }) {
@@ -82,6 +84,73 @@ function EmptyState({ isAdmin, onCreate }) {
   );
 }
 
+/* ─── LLAMADOS SECTION ───────────────────────────────────────── */
+function PendingCallsSection({ calls, onAttend }) {
+  if (!calls || calls.length === 0) return null;
+
+  return (
+    <div style={{ 
+      marginBottom: "32px", 
+      background: `linear-gradient(135deg, ${C.orange}08, ${C.orange}15)`,
+      border: `1.5px solid ${C.orange}44`,
+      borderRadius: "20px",
+      padding: "24px",
+      boxShadow: glow(C.orange, "15"),
+      animation: "fadeDown 0.4s ease"
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+        <div style={{ 
+          width: "40px", height: "40px", borderRadius: "12px", 
+          background: C.orange, display: "flex", alignItems: "center", 
+          justifyContent: "center", boxShadow: glow(C.orange, "44") 
+        }}>
+          <Bell size={20} color="#fff" />
+        </div>
+        <div>
+          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "800", color: C.orange }}>Llamados Pendientes</h2>
+          <p style={{ margin: 0, fontSize: "13px", color: C.textSecondary }}>Mesas que requieren atención inmediata</p>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+        {calls.map(table => (
+          <div key={table.id} style={{ 
+            background: C.bgCard, border: `1px solid ${C.orange}66`, 
+            borderRadius: "14px", padding: "14px 18px", 
+            display: "flex", alignItems: "center", gap: "16px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            flex: "1 1 280px", maxWidth: "400px"
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: "800", fontSize: "16px", color: C.textPrimary }}>{table.sNombre}</div>
+              <div style={{ fontSize: "12px", color: C.textMuted }}>Desde: {table.sLlamandoContexto || 'Desconocido'}</div>
+            </div>
+            <button 
+              onClick={() => onAttend(table.id)}
+              style={{ 
+                background: C.orange, color: "#fff", border: "none", 
+                borderRadius: "8px", padding: "8px 16px", 
+                fontWeight: "700", fontSize: "13px", cursor: "pointer",
+                boxShadow: glow(C.orange, "33"), transition: "transform 0.1s"
+              }}
+              onMouseDown={e => e.currentTarget.style.transform = "scale(0.95)"}
+              onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+            >
+              Atender
+            </button>
+          </div>
+        ))}
+      </div>
+      <style>{`
+        @keyframes fadeDown {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 /* ─── TABLES PAGE ────────────────────────────────────────────── */
 const Tables = () => {
   const [tables,       setTables]       = useState([]);
@@ -93,12 +162,30 @@ const Tables = () => {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
 
+  const prevTablesRef = useRef([]);
+
   /* ── Carga de datos ── */
   const loadTables = async () => {
     try {
-      setLoading(true);
       const data = await tablesService.getAll(filters);
-      setTables(data.data || []);
+      const newTables = data.data || [];
+      
+      // Check for new calls
+      const activeCalls = newTables.filter(t => t.bLlamandoMesero).map(t => t.id);
+      const prevCalls = prevTablesRef.current;
+      const hasNewCall = activeCalls.some(id => !prevCalls.includes(id));
+      
+      if (hasNewCall) {
+        // Añadimos ?t= Date.now() para obligar al navegador a cargar el archivo nuevo y no usar caché
+        const audio = new Audio(`/assets/sounds/notification.mp3?t=${Date.now()}`);
+        audio.volume = 0.5;
+        audio.play().catch(e => {
+          console.warn('El navegador bloqueó el sonido de notificación. Haz clic en cualquier parte de la página para activarlo.', e);
+        });
+      }
+      
+      prevTablesRef.current = activeCalls;
+      setTables(newTables);
     } catch (error) {
       console.error('Error al cargar mesas:', error);
     } finally {
@@ -106,13 +193,30 @@ const Tables = () => {
     }
   };
 
-  useEffect(() => { loadTables(); }, [filters]);
+  useEffect(() => {
+    setLoading(true);
+    loadTables();
+  }, [filters]);
+
+  useEffect(() => {
+    // Polling every 5 seconds for new calls
+    const interval = setInterval(loadTables, 5000);
+    return () => clearInterval(interval);
+  }, [filters]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadTables();
     setTimeout(() => setRefreshing(false), 600);
   };
+
+  const handleAttendCall = async (id) => {
+    try {
+      await tablesService.atenderLlamada(id);
+      await loadTables();
+    } catch (e) { console.error(e); }
+  };
+
 
   /* ── CRUD handlers ── */
   const handleCreate = () => { setSelectedTable(null); setModalOpen(true); };
@@ -182,6 +286,7 @@ const Tables = () => {
           </div>
 
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+
             {/* Refresh */}
             <button
               onClick={handleRefresh}
@@ -238,6 +343,12 @@ const Tables = () => {
           </div>
         </div>
 
+        {/* ── SECCIÓN DE LLAMADOS (Real-time alerts) ── */}
+        <PendingCallsSection 
+          calls={tables.filter(t => t.bLlamandoMesero)} 
+          onAttend={handleAttendCall} 
+        />
+
         {/* ── MINI STATS ── */}
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
           <MiniStat label="Total"       value={total}      color={C.pink}    Icon={TableProperties} />
@@ -289,6 +400,7 @@ const Tables = () => {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onStatusChange={handleStatusChange}
+                onAttendCall={handleAttendCall}
               />
             ))}
           </div>

@@ -5,7 +5,7 @@ import { C, FONT, glow } from '../../../../styles/designTokens';
 import {
   Users, Pencil, PowerOff, RotateCcw,
   CheckCircle, DoorOpen, Star,
-  TreePine, Sun, Armchair
+  TreePine, Sun, Armchair, BellRing
 } from 'lucide-react';
 
 /* ─── CONFIG ─────────────────────────────────────────────────── */
@@ -24,7 +24,7 @@ const UBICACION = {
 };
 
 /* ─── TABLE CARD ─────────────────────────────────────────────── */
-const TableCard = ({ table, onEdit, onDelete, onStatusChange }) => {
+const TableCard = ({ table, onEdit, onDelete, onStatusChange, onAttendCall }) => {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [hov,        setHov]        = useState(false);
@@ -120,6 +120,32 @@ const TableCard = ({ table, onEdit, onDelete, onStatusChange }) => {
             </div>
             <span>{ub.label}</span>
           </div>
+
+          {/* ALERTA: LLAMADO A MESERO */}
+          {table.bLlamandoMesero && (
+            <div style={{
+              marginTop: '4px',
+              padding: '8px 12px',
+              background: `${C.orange}22`,
+              border: `1px solid ${C.orange}55`,
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: C.orange,
+              fontWeight: '700',
+              fontSize: '13px',
+              animation: 'pulse 2s infinite'
+            }}>
+              <BellRing size={15} style={{ animation: 'ring 1.5s infinite' }} />
+              <div>
+                Reclama Ayuda
+                <div style={{ fontSize: '11px', color: C.textSecondary, fontWeight: '600' }}>
+                  De: {table.sLlamandoContexto || 'Desconocido'}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Descripción ── */}
@@ -202,6 +228,18 @@ const TableCard = ({ table, onEdit, onDelete, onStatusChange }) => {
               />
             )
           )}
+
+          {/* Atender Llamada extra button for Meseros */}
+          {!isAdmin && table.bLlamandoMesero && (
+            <ActionBtn
+              label="Atender llamada"
+              Icon={CheckCircle}
+              color={C.orange}
+              onClick={() => onAttendCall(table.id)}
+              fullWidth
+            />
+          )}
+
         </div>
 
       </div>
@@ -239,6 +277,22 @@ function ActionBtn({ label, Icon, color, onClick, fullWidth = false, disabled = 
     >
       <Icon size={13} />
       {label}
+      <style>{`
+        @keyframes pulse {
+          0% { box-shadow: 0 0 0 0 rgba(253, 126, 20, 0.4); }
+          70% { box-shadow: 0 0 0 6px rgba(253, 126, 20, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(253, 126, 20, 0); }
+        }
+        @keyframes ring {
+          0% { transform: rotate(0); }
+          10% { transform: rotate(15deg); }
+          20% { transform: rotate(-10deg); }
+          30% { transform: rotate(5deg); }
+          40% { transform: rotate(-5deg); }
+          50% { transform: rotate(0); }
+          100% { transform: rotate(0); }
+        }
+      `}</style>
     </button>
   );
 }

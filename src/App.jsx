@@ -22,6 +22,7 @@ import MeseroPedidos from "./modules/staff/pages/MeseroPedidos";
 import ErrorPage from "./modules/errors/ErrorPage";
 import ResetPassword from "./modules/auth/pages/ResetPassword";
 import Sitemap from './modules/admin/pages/Sitemap';
+import Rockola from './modules/mesa/pages/Rockola';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -157,6 +158,7 @@ function AppContent() {
         <Route path="/my-order" element={<PrivateRoute><MyOrder /></PrivateRoute>} />
         <Route path="/my-orders" element={<PrivateRoute><MyOrders /></PrivateRoute>} />
         <Route path="/orders" element={<PrivateRoute><MyOrders /></PrivateRoute>} />
+        <Route path="/rockola" element={<PrivateRoute><Rockola /></PrivateRoute>} />
 
         {/* Ruta para cajero */}
         <Route path="/cajero" element={<CajeroRoute><CajeroPanel /></CajeroRoute>} />
