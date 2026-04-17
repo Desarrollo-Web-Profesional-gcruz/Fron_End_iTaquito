@@ -6,7 +6,7 @@ const Layout = ({ children }) => {
   const location = useLocation();
   const path = location.pathname;
 
-  const hideChrome = ['/', '/login', '/menu', '/my-order', '/my-orders', '/cajero', '/reset-password'].includes(path);
+  const hideChrome = ['/', '/login', '/menu', '/my-order', '/my-orders', '/cajero', '/reset-password', '/rockola'].includes(path);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>

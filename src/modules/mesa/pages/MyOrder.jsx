@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../../../contexts/CartContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { ordersService } from '../../../services/orders';
+import { tablesService } from '../../../services/tables';
 import { C, FONT, glow } from '../../../styles/designTokens';
 import { usePedirCuenta } from '../../../hooks/usePedirCuenta';
 import { PayConfirmModal } from '../components/PayConfirmModal';
@@ -10,10 +11,10 @@ import ConfirmModal from '../../../components/common/ConfirmModal';
 import {
   ShoppingBag, UtensilsCrossed, Trash2, Plus, Minus,
   ChevronRight, CheckCircle, Receipt, AlertCircle,
-  Loader, LogOut, MapPin, Utensils, ClipboardList, Pencil, X,
+  Loader, LogOut, MapPin, Utensils, ClipboardList, Pencil, X, Music, BellRing,
 } from 'lucide-react';
-import Breadcrumb from '../../../components/layout/Breadcrumb';
 import { EmojiRatingModal } from '../components/EmojiRatingModal';
+import { EmailTicketModal } from '../components/EmailTicketModal';
 
 /* ─── PAPEL PICADO ───────────────────────────────────────────── */
 const PICADO = [C.pink, C.orange, C.yellow, C.teal, C.purple, C.pinkDim, C.orangeDim, C.tealDim];
@@ -53,68 +54,128 @@ function NavBtn({ label, active, color, onClick, children }) {
 }
 
 /* ─── CLIENT HEADER ──────────────────────────────────────────── */
-function ClientHeader({ totalItems, onLogout }) {
+function ClientHeader({ onLogout }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { mesaNombre, iMesaId } = useAuth();
+  const { user, iMesaId, mesaNombre, logout } = useAuth();
+  const { totalItems } = useCart();
+  const isMesero = user?.rol === 'mesero';
+
+  const [isCalling, setIsCalling] = useState(false);
+  const [callStatus, setCallStatus] = useState(null); // 'idle' | 'calling' | 'success' | 'error'
+
+  const handleLlamar = async () => {
+    if (!iMesaId || isCalling) return;
+    setIsCalling(true);
+    setCallStatus('calling');
+    try {
+      await tablesService.llamarMesero(iMesaId, 'Mi Pedido');
+      setCallStatus('success');
+      setTimeout(() => {
+        setCallStatus(null);
+        setIsCalling(false);
+      }, 4000);
+    } catch (e) {
+      console.error(e);
+      setCallStatus('error');
+      setTimeout(() => {
+        setCallStatus(null);
+        setIsCalling(false);
+      }, 4000);
+    }
+  };
+
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const handleLogoutClick = () => {
+    if (onLogout) onLogout();
+    else setShowLogoutModal(true);
+  };
 
   return (
     <>
-      <header style={{
-        background: C.bgAccent, borderBottom: `1px solid ${C.border}`,
-        position: 'sticky', top: 0, zIndex: 200,
-        boxShadow: '0 2px 16px rgba(0,0,0,0.4)', fontFamily: FONT,
-      }}>
-        <div style={{ height: '3px', background: `linear-gradient(90deg, ${C.teal}, ${C.teal}88, transparent)` }} />
-        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 20px', height: '54px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-
+      <header style={{ background: C.bgAccent, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 200, boxShadow: '0 2px 16px rgba(0,0,0,0.4)', fontFamily: FONT }}>
+        <div style={{ height: '3px', background: `linear-gradient(90deg, ${C.teal}, ${C.teal}88, transparent)`, boxShadow: 'none' }} />
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px', height: '54px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+  
           <div onClick={() => navigate('/menu')} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${C.teal}22`, border: `1.5px solid ${C.teal}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${C.teal}22`, border: `1.5px solid ${C.teal}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: glow(C.teal, '33') }}>
               <Utensils size={15} color={C.teal} />
             </div>
             <span style={{ color: C.cream, fontWeight: '800', fontSize: '16px' }}>iTaquito</span>
           </div>
-
+  
           {(mesaNombre || iMesaId) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: '20px', padding: '4px 10px', color: C.teal, fontSize: '12px', fontWeight: '700' }}>
               <MapPin size={11} /> {mesaNombre || `Mesa ${iMesaId}`}
             </div>
           )}
-
+  
           <div style={{ flex: 1 }} />
-
+  
           <NavBtn label="Menú" active={pathname === '/menu'} color={C.teal} onClick={() => navigate('/menu')}>
             <UtensilsCrossed size={14} />
           </NavBtn>
-
-          <NavBtn label="Mi Pedido" active={pathname === '/my-order'} color={C.pink} onClick={() => navigate('/my-order')}>
-            <ShoppingBag size={14} />
-            {totalItems > 0 && (
-              <span style={{ background: C.pink, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {totalItems}
-              </span>
-            )}
+  
+          <NavBtn label="Rockola" active={pathname === '/rockola'} color={C.purple} onClick={() => navigate('/rockola')}>
+            <Music size={14} />
           </NavBtn>
-
-          <NavBtn label="Mis Pedidos" active={pathname === '/my-orders'} color={C.purple} onClick={() => navigate('/my-orders')}>
-            <ClipboardList size={14} />
-          </NavBtn>
-
-          <button
-            onClick={() => setShowLogoutModal(true)}
-            style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', padding: '6px 10px', color: C.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontFamily: FONT, fontWeight: '700', fontSize: '11px', transition: 'all 0.18s' }}
-            onMouseEnter={e => { e.currentTarget.style.color = C.pink; e.currentTarget.style.borderColor = C.pink + '55'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>
+  
+          {!isMesero && (
+            <>
+              <NavBtn label="Mi Pedido" active={pathname === '/my-order'} color={C.pink} onClick={() => navigate('/my-order')}>
+                <ShoppingBag size={14} />
+                {totalItems > 0 && (
+                  <span style={{ background: C.pink, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {totalItems}
+                  </span>
+                )}
+              </NavBtn>
+  
+              <NavBtn label="Mis Pedidos" active={pathname === '/my-orders'} color={C.purple} onClick={() => navigate('/my-orders')}>
+                <ClipboardList size={14} />
+              </NavBtn>
+            </>
+          )}
+  
+          {(mesaNombre || iMesaId) && !isMesero && iMesaId !== null && iMesaId !== undefined && (
+            <button 
+              disabled={isCalling}
+              onClick={handleLlamar}
+              style={{ 
+                background: callStatus === 'success' ? `${C.teal}12` : callStatus === 'error' ? `${C.pink}12` : `${C.orange}12`, 
+                border: `1px solid ${callStatus === 'success' ? C.teal : callStatus === 'error' ? C.pink : C.orange}33`, 
+                borderRadius: '8px', padding: '6px 12px', 
+                color: callStatus === 'success' ? C.teal : callStatus === 'error' ? C.pink : C.orange, 
+                fontFamily: FONT, fontWeight: '700', fontSize: '12px', cursor: isCalling ? 'not-allowed' : 'pointer', 
+                display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.18s' 
+              }}
+              onMouseEnter={e => { if(!isCalling) { e.currentTarget.style.background = `${C.orange}22`; e.currentTarget.style.borderColor = C.orange; } }}
+              onMouseLeave={e => { if(!isCalling) { e.currentTarget.style.background = `${C.orange}12`; e.currentTarget.style.borderColor = `${C.orange}33`; } }}>
+              {callStatus === 'calling' ? (
+                <Loader size={13} style={{ animation: 'spin 1.5s linear infinite' }} />
+              ) : callStatus === 'success' ? (
+                <CheckCircle size={13} />
+              ) : (
+                <BellRing size={13} />
+              )}
+              {callStatus === 'calling' ? 'Llamando...' : callStatus === 'success' ? '¡Notificado!' : callStatus === 'error' ? 'Reintentar' : 'Llamar Mesero'}
+            </button>
+          )}
+  
+          <button onClick={handleLogoutClick}
+            style={{ background: `${C.pink}12`, border: `1px solid ${C.pink}33`, borderRadius: '8px', padding: '6px 12px', color: C.pink, fontFamily: FONT, fontWeight: '700', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.18s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = `${C.pink}22`; e.currentTarget.style.borderColor = C.pink; }}
+            onMouseLeave={e => { e.currentTarget.style.background = `${C.pink}12`; e.currentTarget.style.borderColor = `${C.pink}33`; }}>
             <LogOut size={13} /> Salir
           </button>
         </div>
       </header>
-
+  
       <ConfirmModal
         isOpen={showLogoutModal}
         onClose={() => setShowLogoutModal(false)}
-        onConfirm={() => { setShowLogoutModal(false); onLogout(); }}
+        onConfirm={() => { setShowLogoutModal(false); logout(); }}
         title="¿Cerrar sesión?"
         message="Se cerrará tu sesión en esta mesa. Tus pedidos activos seguirán en proceso."
       />
@@ -294,7 +355,7 @@ function PlateTab({ plate, active, itemCount, onSelect, onRemove, onRename, canR
 ═══════════════════════════════════════════════════════════════ */
 const MyOrder = () => {
   const navigate = useNavigate();
-  const { logout, getMesaId, mesaNombre } = useAuth();
+  const { user, logout, getMesaId, mesaNombre, setMesaEstado } = useAuth();
   const {
     plates, activePlateId, activePlate,
     addPlate, removePlate, renamePlate, setActivePlate,
@@ -307,6 +368,10 @@ const MyOrder = () => {
   const [orderingNow,    setOrderingNow]    = useState(false);
   const [orderSuccess,   setOrderSuccess]   = useState(false);
   const [orderModalErr,  setOrderModalErr]  = useState('');
+  const [animatingEnd,   setAnimatingEnd]   = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [ticketItems,    setTicketItems]    = useState([]);
+  const [ticketTotal,    setTicketTotal]    = useState(0);
   const [showPayModal,   setShowPayModal]   = useState(false);
   
   // ── Emoji Rating ──
@@ -315,21 +380,71 @@ const MyOrder = () => {
 
   const iMesaId = getMesaId();
 
-  const { ejecutar: ejecutarPago, loading: payLoading, error: payError, clearError: clearPayError } = usePedirCuenta({
+  const { ejecutar: ejecutarPedirCuenta, loading: payLoading, error: payError, clearError: clearPayError } = usePedirCuenta({
     iMesaId,
-    onEnPago:     useCallback(() => navigate('/menu'), [navigate]),
-    onDisponible: useCallback(() => navigate('/menu'), [navigate]),
+    onEnPago: useCallback(() => {
+      setTimeout(() => { if (typeof setMesaEstado === 'function') setMesaEstado('en_pago'); setAnimatingEnd(false); }, 2000);
+    }, [setMesaEstado]),
+    onDisponible: useCallback(() => {
+      setTimeout(() => { 
+        if (typeof setMesaEstado === 'function') setMesaEstado('disponible'); 
+        setAnimatingEnd(false); 
+        clearAllPlates();
+      }, 2000);
+    }, [clearAllPlates, setMesaEstado]),
   });
 
   const handleAbrirPayModal  = () => { clearPayError(); setShowPayModal(true); };
   const handleCerrarPayModal = () => { if (!payLoading) setShowPayModal(false); };
-  const handleConfirmarPago  = async () => { 
-    const ok = await ejecutarPago(); 
+  const handleConfirmarPago  = async () => {
+    setAnimatingEnd(true);
+    const ok = await ejecutarPedirCuenta();
     if (ok) {
       setShowPayModal(false);
-      setPendingAction('pay');
-      setShowEmojiRating(true);
+      try {
+        const token = localStorage.getItem('mesaSessionToken');
+        // Usar siempre el token si existe para no mezclar sesiones
+        const data = await ordersService.getAll({ iMesaId, sTokenSesion: token });
+        let orders = data?.data || [];
+        
+        console.log('MyOrder Ticket - Orders found:', orders.length);
+
+        const formatted = orders
+          .filter(o => o.sEstado !== 'cancelado')
+          .flatMap(order => 
+            (order.items || []).map(i => ({
+              nombre: i.producto?.sNombre || 'Producto',
+              precio: parseFloat(i.dPrecioHistorico || i.producto?.dPrecio || 0),
+              qty: i.iCantidad
+            }))
+          );
+        const total = formatted.reduce((acc, i) => acc + (i.precio * i.qty), 0);
+        console.log('MyOrder Ticket - Items formatted:', formatted.length);
+        
+        if (formatted.length > 0) {
+          setTicketItems(formatted);
+          setTicketTotal(total);
+          setAnimatingEnd(false);
+          setShowEmailModal(true);
+        } else {
+          throw new Error('No items');
+        }
+      } catch (e) {
+        setAnimatingEnd(false);
+        setPendingAction('pay');
+        setShowEmojiRating(true);
+      }
+    } else {
+      setAnimatingEnd(false);
     }
+  };
+
+
+
+  const handleCloseEmailModal = () => {
+    setShowEmailModal(false);
+    setPendingAction('pay');
+    setShowEmojiRating(true);
   };
 
   const handleLogoutRequest = () => {
@@ -373,11 +488,17 @@ const MyOrder = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT, color: C.textPrimary }}>
-      <ClientHeader totalItems={totalItems} onLogout={handleLogoutRequest} />
+      <EmailTicketModal 
+        isOpen={showEmailModal}
+        onClose={handleCloseEmailModal}
+        items={ticketItems}
+        total={ticketTotal}
+        tableName={localStorage.getItem('meseroMesaNombre') || 'Mesa'}
+        sessionToken={localStorage.getItem('mesaSessionToken')}
+      />
+      <ClientHeader onLogout={handleLogoutRequest} />
 
       <main style={{ maxWidth: '720px', margin: '0 auto', padding: '28px 24px 140px' }}>
-        <Breadcrumb />
-
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
           <div style={{ width: '4px', height: '26px', borderRadius: '2px', background: C.pink, boxShadow: glow(C.pink) }} />
           <div>
@@ -562,6 +683,17 @@ const MyOrder = () => {
         iMesaId={iMesaId}
         onComplete={handleEmojiComplete} 
       />
+
+
+
+      {animatingEnd && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: C.orange, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', animation: 'fadeInOut 2s forwards' }}>
+          <div style={{ animation: 'bounceUp 0.6s ease-in-out infinite alternate' }}>
+            <ClipboardList size={100} color="#fff" />
+          </div>
+          <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: '900', marginTop: '24px', animation: 'scaleUp 0.8s ease-out', textAlign: 'center', padding: '0 20px' }}>Enviando tu cuenta al cajero...</h1>
+        </div>
+      )}
 
       <style>{`
         @keyframes spin     { to { transform: rotate(360deg); } }

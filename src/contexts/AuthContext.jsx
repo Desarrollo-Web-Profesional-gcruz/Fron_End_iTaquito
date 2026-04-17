@@ -54,6 +54,10 @@ export const AuthProvider = ({ children }) => {
       
       // Caso 2: Login exitoso
       if (data.token && data.user) {
+        // Si es una mesa, limpiamos cualquier token de sesión anterior para aislamiento total
+        if (data.user.rol === 'mesa') {
+          localStorage.removeItem('mesaSessionToken');
+        }
         setUser(data.user);
         setLoginAt(authService.getLoginAt());
         setPending2FA(null);

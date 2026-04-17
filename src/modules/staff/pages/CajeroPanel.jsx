@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { C, FONT, glow } from '../../../styles/designTokens';
@@ -8,7 +8,7 @@ import {
   RefreshCw, UtensilsCrossed, ChevronDown, ChevronUp,
   Printer, Clock, AlertCircle, ArrowRightLeft, Users,
   History, Receipt, CalendarDays, LogOut, Music, TrendingUp,
-  Sparkles, ClipboardList, Bell,
+  Sparkles, ClipboardList, Bell, Search, Plus,
 } from 'lucide-react';
 import Breadcrumb from '../../../components/layout/Breadcrumb';
 
@@ -818,35 +818,383 @@ function TabButton({ active, onClick, icon, label, color }) {
   );
 }
 
-/* ─── PANEL DE CANCIONES ─────────────────────────────────────── */
+/* ─── PANEL DE CANCIONES (FUNCIONAL) ─────────────────────────── */
 function CancionesPanel() {
+  const [queue, setQueue] = useState([]);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [toast, setToast] = useState(null);
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const debounceRef = useRef(null);
+
+  const loadQueue = useCallback(async () => {
+    try {
+      const res = await import('../../../services/music').then(m => m.musicService.getQueue());
+      setQueue(res.data || []);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { loadQueue(); }, [loadQueue]);
+  useEffect(() => {
+    const t = setInterval(loadQueue, 8000);
+    return () => clearInterval(t);
+  }, [loadQueue]);
+
+  const nowPlaying = queue.find(s => s.sEstado === 'reproduciendo');
+  const queueRef = useRef(queue);
+  const nowPlayingRef = useRef(nowPlaying);
+  useEffect(() => { queueRef.current = queue; }, [queue]);
+  useEffect(() => { nowPlayingRef.current = nowPlaying; }, [nowPlaying]);
+
+  // Audio progress tracking
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onTime = () => {
+      if (audio.duration) setProgress((audio.currentTime / audio.duration) * 100);
+    };
+    const onEnd = async () => { 
+      setIsPlaying(false); 
+      setProgress(0); 
+      const np = nowPlayingRef.current;
+      if (np) {
+        // Marcar completada
+        await import('../../../services/music').then(m => m.musicService.changeStatus(np.id, 'completada'));
+        // Buscar la siguiente para reproducir automáticamente
+        const q = queueRef.current;
+        const nextSong = q.find(s => s.sEstado === 'en_cola' && s.id !== np.id);
+        if (nextSong && nextSong.sPreviewUrl) {
+          audio.src = nextSong.sPreviewUrl;
+          audio.play().then(() => setIsPlaying(true)).catch(() => {});
+          import('../../../services/music').then(m => m.musicService.changeStatus(nextSong.id, 'reproduciendo')).then(loadQueue);
+        } else {
+          loadQueue();
+        }
+      }
+    };
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('ended', onEnd);
+    return () => { audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('ended', onEnd); };
+  }, [loadQueue]);
+
+  // Search debounce
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!searchQ.trim() || searchQ.trim().length < 2) { setSearchResults([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await import('../../../services/music').then(m => m.musicService.searchTracks(searchQ.trim()));
+        setSearchResults(res.data || []);
+      } catch { /* ignore */ }
+      finally { setSearching(false); }
+    }, 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchQ]);
+
+
+  const handlePlay = (song) => {
+    if (!song.sPreviewUrl) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    
+    // Si es la misma canción actual, hacer toggle play/pause sin reiniciar el `src`
+    if (nowPlaying?.id === song.id) {
+      if (isPlaying) {
+        audio.pause(); 
+        setIsPlaying(false);
+      } else {
+        audio.play().then(() => setIsPlaying(true)).catch(() => {});
+      }
+    } else {
+      // Es una canción diferente, cambiar src y reproducir
+      audio.src = song.sPreviewUrl;
+      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+      import('../../../services/music').then(m => m.musicService.changeStatus(song.id, 'reproduciendo')).then(loadQueue);
+    }
+  };
+
+  const handleStatus = async (id, status, label) => {
+    setActionLoading(id);
+    try {
+      await import('../../../services/music').then(m => m.musicService.changeStatus(id, status));
+      if (status === 'completada' || status === 'descartada') {
+        const audio = audioRef.current;
+        if (audio) { audio.pause(); setIsPlaying(false); setProgress(0); }
+      }
+      setToast({ msg: label, type: 'success' });
+      setTimeout(() => setToast(null), 2500);
+      await loadQueue();
+    } catch { setToast({ msg: 'Error al actualizar', type: 'error' }); setTimeout(() => setToast(null), 2500); }
+    finally { setActionLoading(null); }
+  };
+
+  const handleStaffAdd = async (track) => {
+    try {
+      await import('../../../services/music').then(m => m.musicService.staffAddSong({
+        spotifyTrackId: track.spotifyTrackId,
+        nombre: track.nombre, artista: track.artista,
+        album: track.album, imagenUrl: track.imagenUrl,
+        previewUrl: track.previewUrl, duracionMs: track.duracionMs,
+      }));
+      setToast({ msg: `"${track.nombre}" agregada`, type: 'success' });
+      setTimeout(() => setToast(null), 2500);
+      setSearchQ(''); setSearchResults([]);
+      await loadQueue();
+    } catch { setToast({ msg: 'Error al agregar', type: 'error' }); setTimeout(() => setToast(null), 2500); }
+  };
+
+  const handleRemove = async (id) => {
+    setActionLoading(id);
+    try {
+      await import('../../../services/music').then(m => m.musicService.removeSong(id));
+      const audio = audioRef.current;
+      if (audio && nowPlaying?.id === id) { audio.pause(); setIsPlaying(false); setProgress(0); }
+      setToast({ msg: 'Canción descartada', type: 'success' });
+      setTimeout(() => setToast(null), 2500);
+      await loadQueue();
+    } catch { setToast({ msg: 'Error al descartar', type: 'error' }); setTimeout(() => setToast(null), 2500); }
+    finally { setActionLoading(null); }
+  };
+
   return (
-    <div style={{
-      background: C.bgCard, borderRadius: '20px',
-      border: `1.5px solid ${C.border}`, padding: '48px 32px', textAlign: 'center',
-    }}>
-      <div style={{
-        width: '80px', height: '80px', borderRadius: '24px',
-        background: `${C.teal}15`, border: `1.5px solid ${C.teal}35`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        margin: '0 auto 24px',
-      }}>
-        <Music size={32} color={C.teal} />
-      </div>
-      <h2 style={{ color: C.textPrimary, marginBottom: '12px', fontSize: '20px', fontWeight: '800' }}>
-        Panel de Canciones
-      </h2>
-      <p style={{ color: C.textMuted, maxWidth: '400px', margin: '0 auto', fontSize: '14px' }}>
-        Gestión de playlist y solicitudes musicales
-      </p>
-      <div style={{
-        marginTop: '32px', padding: '24px', background: C.bg,
-        borderRadius: '16px', border: `1px dashed ${C.border}`,
-      }}>
-        <Sparkles size={24} color={C.purple} style={{ marginBottom: '12px' }} />
-        <p style={{ color: C.textSecondary, fontSize: '13px' }}>
-          Próximamente: Cola de canciones y solicitudes activas
-        </p>
+    <div>
+      <audio ref={audioRef} />
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: '28px', right: '28px', zIndex: 600,
+          background: C.bgCard, border: `1.5px solid ${toast.type === 'success' ? C.teal : C.pink}55`,
+          borderRadius: '14px', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: '8px',
+          fontFamily: FONT, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', animation: 'slideIn 0.3s ease',
+        }}>
+          {toast.type === 'success' ? <CheckCircle size={16} color={C.teal} /> : <AlertCircle size={16} color={C.pink} />}
+          <span style={{ color: C.textPrimary, fontSize: '13px', fontWeight: '600' }}>{toast.msg}</span>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', alignItems: 'start' }}>
+
+        {/* Left: Now Playing + Queue */}
+        <div>
+          {/* Now playing card */}
+          {nowPlaying ? (
+            <div style={{
+              background: C.bgCard, border: `1.5px solid ${C.purple}44`, borderRadius: '20px',
+              overflow: 'hidden', marginBottom: '20px',
+            }}>
+              <div style={{ height: '4px', background: `linear-gradient(90deg, ${C.purple}, ${C.teal})` }} />
+              <div style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                {nowPlaying.sImagenUrl && (
+                  <img src={nowPlaying.sImagenUrl} alt="" style={{
+                    width: '80px', height: '80px', borderRadius: '14px', objectFit: 'cover', flexShrink: 0,
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                  }} />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '10px', color: C.purple, fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    ♫ Reproduciendo ahora
+                  </div>
+                  <div style={{ color: C.textPrimary, fontWeight: '800', fontSize: '18px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {nowPlaying.sNombre}
+                  </div>
+                  <div style={{ color: C.textSecondary, fontSize: '13px', marginTop: '2px' }}>{nowPlaying.sArtista}</div>
+                  {nowPlaying.mesa && (
+                    <div style={{ fontSize: '11px', color: C.teal, fontWeight: '700', marginTop: '4px' }}>
+                      Pedida por: {nowPlaying.mesa.sNombre}
+                    </div>
+                  )}
+                  {/* Progress bar */}
+                  <div style={{ height: '4px', background: `${C.purple}18`, borderRadius: '99px', marginTop: '10px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${progress}%`, background: C.purple, borderRadius: '99px', transition: 'width 0.3s' }} />
+                  </div>
+                </div>
+                {/* Controls */}
+                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  {nowPlaying.sPreviewUrl && (
+                    <button onClick={() => handlePlay(nowPlaying)}
+                      style={{
+                        width: '44px', height: '44px', borderRadius: '50%', border: 'none',
+                        background: C.purple, color: '#fff', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '18px', transition: 'transform 0.2s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+                      onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                    >
+                      {isPlaying ? '⏸' : '▶'}
+                    </button>
+                  )}
+                  <button onClick={() => handleStatus(nowPlaying.id, 'completada', 'Canción completada')}
+                    disabled={actionLoading === nowPlaying.id}
+                    style={{
+                      width: '44px', height: '44px', borderRadius: '50%',
+                      border: `1.5px solid ${C.teal}55`, background: `${C.teal}15`,
+                      color: C.teal, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                    <CheckCircle size={18} />
+                  </button>
+                  <button onClick={() => handleRemove(nowPlaying.id)}
+                    disabled={actionLoading === nowPlaying.id}
+                    style={{
+                      width: '44px', height: '44px', borderRadius: '50%',
+                      border: `1.5px solid ${C.pink}55`, background: `${C.pink}15`,
+                      color: C.pink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                    <XCircle size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              background: C.bgCard, border: `1.5px dashed ${C.border}`, borderRadius: '20px',
+              padding: '32px', textAlign: 'center', marginBottom: '20px',
+            }}>
+              <Music size={36} color={`${C.purple}33`} style={{ marginBottom: '12px' }} />
+              <div style={{ color: C.textMuted, fontSize: '14px', fontWeight: '600' }}>Sin canción reproduciéndose</div>
+              <div style={{ color: C.textMuted, fontSize: '12px', marginTop: '4px' }}>Selecciona una canción de la cola para reproducir</div>
+            </div>
+          )}
+
+          {/* Queue */}
+          <div style={{
+            background: C.bgCard, border: `1.5px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden',
+          }}>
+            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '3px', height: '16px', borderRadius: '2px', background: C.teal }} />
+              <span style={{ color: C.textPrimary, fontWeight: '800', fontSize: '14px' }}>Cola de canciones</span>
+              <span style={{
+                marginLeft: 'auto', background: `${C.teal}15`, border: `1px solid ${C.teal}33`,
+                color: C.teal, borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: '800',
+              }}>{queue.filter(s => s.sEstado === 'en_cola').length} en espera</span>
+            </div>
+
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <RefreshCw size={24} color={C.purple} style={{ animation: 'spin 0.8s linear infinite' }} />
+              </div>
+            ) : queue.filter(s => s.sEstado === 'en_cola').length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: C.textMuted }}>
+                <Sparkles size={28} color={`${C.teal}33`} style={{ marginBottom: '8px' }} />
+                <div style={{ fontSize: '13px' }}>La cola está vacía</div>
+              </div>
+            ) : (
+              <div>
+                {queue.filter(s => s.sEstado === 'en_cola').map((song, i) => (
+                  <div key={song.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 18px',
+                    borderBottom: `1px solid ${C.border}`, transition: 'background 0.15s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.background = C.bgCardHov}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{
+                      width: '24px', height: '24px', borderRadius: '7px', flexShrink: 0,
+                      background: `${C.teal}15`, border: `1px solid ${C.teal}33`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: C.teal, fontWeight: '800', fontSize: '11px',
+                    }}>{i + 1}</span>
+                    {song.sImagenUrl && (
+                      <img src={song.sImagenUrl} alt="" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: C.textPrimary, fontWeight: '700', fontSize: '13px',  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.sNombre}</div>
+                      <div style={{ color: C.textMuted, fontSize: '11px' }}>{song.sArtista}</div>
+                    </div>
+                    {song.mesa && (
+                      <span style={{ fontSize: '10px', color: C.teal, fontWeight: '700', background: `${C.teal}12`, borderRadius: '8px', padding: '2px 8px', flexShrink: 0 }}>
+                        {song.mesa.sNombre}
+                      </span>
+                    )}
+                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                      <button onClick={() => handlePlay(song)} title="Reproducir"
+                        style={{ width: '32px', height: '32px', borderRadius: '8px', border: `1px solid ${C.purple}44`, background: `${C.purple}12`, color: C.purple, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
+                        ▶
+                      </button>
+                      <button onClick={() => handleRemove(song.id)} title="Descartar"
+                        disabled={actionLoading === song.id}
+                        style={{ width: '32px', height: '32px', borderRadius: '8px', border: `1px solid ${C.pink}44`, background: `${C.pink}12`, color: C.pink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <XCircle size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Staff search to add songs */}
+        <div style={{ position: 'sticky', top: '70px' }}>
+          <div style={{
+            background: C.bgCard, border: `1.5px solid ${C.border}`, borderRadius: '16px',
+            overflow: 'hidden',
+          }}>
+            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '3px', height: '16px', borderRadius: '2px', background: C.purple }} />
+              <span style={{ color: C.textPrimary, fontWeight: '800', fontSize: '14px' }}>Agregar canción</span>
+            </div>
+
+            <div style={{ padding: '12px' }}>
+              <div style={{ position: 'relative', marginBottom: '12px' }}>
+                <Search size={14} color={C.textMuted} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  value={searchQ} onChange={e => setSearchQ(e.target.value)}
+                  placeholder="Buscar canción..."
+                  style={{
+                    width: '100%', boxSizing: 'border-box', background: C.bg,
+                    border: `1px solid ${C.border}`, borderRadius: '9px',
+                    padding: '9px 10px 9px 30px', color: C.textPrimary,
+                    fontFamily: FONT, fontWeight: '600', fontSize: '12px', outline: 'none',
+                  }}
+                />
+              </div>
+
+              {searching && (
+                <div style={{ textAlign: 'center', padding: '16px' }}>
+                  <RefreshCw size={16} color={C.purple} style={{ animation: 'spin 0.8s linear infinite' }} />
+                </div>
+              )}
+
+              <div style={{ maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {searchResults.map(track => (
+                  <div key={track.spotifyTrackId} style={{
+                    display: 'flex', alignItems: 'center', gap: '8px', padding: '8px',
+                    borderRadius: '10px', transition: 'background 0.15s', cursor: 'pointer',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.background = C.bgCardHov}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    {track.imagenUrl && (
+                      <img src={track.imagenUrl} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: C.textPrimary, fontWeight: '700', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{track.nombre}</div>
+                      <div style={{ color: C.textMuted, fontSize: '10px' }}>{track.artista}</div>
+                    </div>
+                    <button onClick={() => handleStaffAdd(track)}
+                      style={{
+                        background: `${C.teal}15`, border: `1px solid ${C.teal}44`,
+                        borderRadius: '7px', padding: '5px 10px', color: C.teal,
+                        fontFamily: FONT, fontWeight: '700', fontSize: '11px',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+                      }}>
+                      <Plus size={12} /> Agregar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

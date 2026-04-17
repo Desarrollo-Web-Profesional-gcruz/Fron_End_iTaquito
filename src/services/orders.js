@@ -52,4 +52,10 @@ export const ordersService = {
     const { data } = await api.delete(`/orders/${id}`);
     return data;
   },
+
+  /* Enviar ticket por email */
+  sendTicketEmail: async ({ email, tableName, items, total, sessionToken }) => {
+    const { data } = await api.post('/orders/send-ticket-email', { email, tableName, items, total, sessionToken });
+    return data;
+  },
 };

@@ -66,6 +66,9 @@ export const authService = {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('loginAt');
+      localStorage.removeItem('mesaSessionToken');
+      localStorage.removeItem('meseroMesaId');
+      localStorage.removeItem('meseroMesaNombre');
     }
   },
 

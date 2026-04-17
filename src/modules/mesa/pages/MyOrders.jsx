@@ -8,40 +8,41 @@ import { C, FONT, glow } from '../../../styles/designTokens';
 import { usePedirCuenta } from '../../../hooks/usePedirCuenta';
 import { PayConfirmModal } from '../components/PayConfirmModal';
 import ConfirmModal from '../../../components/common/ConfirmModal';
-import { 
-  ClipboardList, UtensilsCrossed, ShoppingBag, 
+import {
+  ClipboardList, UtensilsCrossed, ShoppingBag,
   Clock, CheckCircle, ChefHat, Truck, XCircle,
   RefreshCw, MapPin, LogOut, Utensils, Plus,
   Filter, Search, ChevronDown, AlertCircle,
-  ArrowRight, Calendar, TableProperties, Loader 
+  ArrowRight, Calendar, TableProperties, Loader, Music, BellRing
 } from 'lucide-react';
-import Breadcrumb from '../../../components/layout/Breadcrumb';
+
 import { EmojiRatingModal } from '../components/EmojiRatingModal';
+import { EmailTicketModal } from '../components/EmailTicketModal';
 
 /* ─── ESTADO CONFIG ──────────────────────────────────────────── */
 const ESTADO = {
-  pendiente:      { label: 'Pendiente',      color: '#F59E0B', Icon: Clock        },
-  en_preparacion: { label: 'En preparación', color: '#F97316', Icon: ChefHat      },
-  listo:          { label: '¡Listo!',        color: '#14B8A6', Icon: CheckCircle  },
-  entregado:      { label: 'Entregado',      color: '#8B5CF6', Icon: Truck        },
-  cancelado:      { label: 'Cancelado',      color: '#EC4899', Icon: XCircle      },
+  pendiente: { label: 'Pendiente', color: '#F59E0B', Icon: Clock },
+  en_preparacion: { label: 'En preparación', color: '#F97316', Icon: ChefHat },
+  listo: { label: '¡Listo!', color: '#14B8A6', Icon: CheckCircle },
+  entregado: { label: 'Entregado', color: '#8B5CF6', Icon: Truck },
+  cancelado: { label: 'Cancelado', color: '#EC4899', Icon: XCircle },
 };
 
 const FLUJO = {
-  pendiente:      ['en_preparacion', 'cancelado'],
-  en_preparacion: ['listo',          'cancelado'],
-  listo:          ['entregado'],
-  entregado:      [],
-  cancelado:      [],
+  pendiente: ['en_preparacion', 'cancelado'],
+  en_preparacion: ['listo', 'cancelado'],
+  listo: ['entregado'],
+  entregado: [],
+  cancelado: [],
 };
 
 const ESTADO_LABELS = {
-  todos:          'Todos',
-  pendiente:      'Pendiente',
+  todos: 'Todos',
+  pendiente: 'Pendiente',
   en_preparacion: 'En preparación',
-  listo:          'Listo',
-  entregado:      'Entregado',
-  cancelado:      'Cancelado',
+  listo: 'Listo',
+  entregado: 'Entregado',
+  cancelado: 'Cancelado',
 };
 
 /* ─── NAV BUTTON (cliente) ───────────────────────────────────── */
@@ -56,38 +57,109 @@ function NavBtn({ label, active, color, onClick, children }) {
   );
 }
 
-/* ─── CLIENT HEADER ──────────────────────────────────────────── */
-function ClientHeader({ totalItems, onLogout }) {
+function ClientHeader({ onLogout }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { mesaNombre, iMesaId } = useAuth();
+  const { user, iMesaId, mesaNombre, logout } = useAuth();
+  const { totalItems } = useCart();
+  const isMesero = user?.rol === 'mesero';
+
+  const [isCalling, setIsCalling] = useState(false);
+  const [callStatus, setCallStatus] = useState(null);
+
+  const handleLlamar = async () => {
+    if (!iMesaId || isCalling) return;
+    setIsCalling(true);
+    setCallStatus('calling');
+    try {
+      await tablesService.llamarMesero(iMesaId, 'Mis Pedidos');
+      setCallStatus('success');
+      setTimeout(() => { setCallStatus(null); setIsCalling(false); }, 4000);
+    } catch (e) {
+      console.error(e);
+      setCallStatus('error');
+      setTimeout(() => { setCallStatus(null); setIsCalling(false); }, 4000);
+    }
+  };
+
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const handleLogoutClick = () => {
+    if (onLogout) onLogout();
+    else setShowLogoutModal(true);
+  };
 
   return (
     <>
       <header style={{ background: C.bgAccent, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 200, boxShadow: '0 2px 16px rgba(0,0,0,0.4)', fontFamily: FONT }}>
-        <div style={{ height: '3px', background: `linear-gradient(90deg, ${C.teal}, ${C.teal}88, transparent)` }} />
-        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 20px', height: '54px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ height: '3px', background: `linear-gradient(90deg, ${C.teal}, ${C.teal}88, transparent)`, boxShadow: 'none' }} />
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px', height: '54px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+
           <div onClick={() => navigate('/menu')} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${C.teal}22`, border: `1.5px solid ${C.teal}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${C.teal}22`, border: `1.5px solid ${C.teal}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: glow(C.teal, '33') }}>
               <Utensils size={15} color={C.teal} />
             </div>
             <span style={{ color: C.cream, fontWeight: '800', fontSize: '16px' }}>iTaquito</span>
           </div>
+
           {(mesaNombre || iMesaId) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: '20px', padding: '4px 10px', color: C.teal, fontSize: '12px', fontWeight: '700' }}>
               <MapPin size={11} /> {mesaNombre || `Mesa ${iMesaId}`}
             </div>
           )}
+
           <div style={{ flex: 1 }} />
-          <NavBtn label="Menú"        active={pathname === '/menu'}      color={C.teal}   onClick={() => navigate('/menu')}><UtensilsCrossed size={14} /></NavBtn>
-          <NavBtn label="Mi Pedido"   active={pathname === '/my-order'}  color={C.pink}   onClick={() => navigate('/my-order')}>
-            <ShoppingBag size={14} />
-            {totalItems > 0 && <span style={{ background: C.pink, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{totalItems}</span>}
+
+          <NavBtn label="Menú" active={pathname === '/menu'} color={C.teal} onClick={() => navigate('/menu')}>
+            <UtensilsCrossed size={14} />
           </NavBtn>
-          <NavBtn label="Mis Pedidos" active={pathname === '/my-orders'} color={C.purple} onClick={() => navigate('/my-orders')}><ClipboardList size={14} /></NavBtn>
-          <button
-            onClick={() => setShowLogoutModal(true)}
+
+          <NavBtn label="Rockola" active={pathname === '/rockola'} color={C.purple} onClick={() => navigate('/rockola')}>
+            <Music size={14} />
+          </NavBtn>
+
+          {!isMesero && (
+            <>
+              <NavBtn label="Mi Pedido" active={pathname === '/my-order'} color={C.pink} onClick={() => navigate('/my-order')}>
+                <ShoppingBag size={14} />
+                {totalItems > 0 && (
+                  <span style={{ background: C.pink, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {totalItems}
+                  </span>
+                )}
+              </NavBtn>
+              <NavBtn label="Mis Pedidos" active={pathname === '/my-orders'} color={C.purple} onClick={() => navigate('/my-orders')}>
+                <ClipboardList size={14} />
+              </NavBtn>
+            </>
+          )}
+
+          {(mesaNombre || iMesaId) && !isMesero && iMesaId !== null && iMesaId !== undefined && (
+            <button
+              disabled={isCalling}
+              onClick={handleLlamar}
+              style={{
+                background: callStatus === 'success' ? `${C.teal}12` : callStatus === 'error' ? `${C.pink}12` : `${C.orange}12`,
+                border: `1px solid ${callStatus === 'success' ? C.teal : callStatus === 'error' ? C.pink : C.orange}33`,
+                borderRadius: '8px', padding: '6px 12px',
+                color: callStatus === 'success' ? C.teal : callStatus === 'error' ? C.pink : C.orange,
+                fontFamily: FONT, fontWeight: '700', fontSize: '12px', cursor: isCalling ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.18s'
+              }}
+              onMouseEnter={e => { if (!isCalling) { e.currentTarget.style.background = `${C.orange}22`; e.currentTarget.style.borderColor = C.orange; } }}
+              onMouseLeave={e => { if (!isCalling) { e.currentTarget.style.background = `${C.orange}12`; e.currentTarget.style.borderColor = `${C.orange}33`; } }}>
+              {callStatus === 'calling' ? (
+                <Loader size={13} style={{ animation: 'spin 1.5s linear infinite' }} />
+              ) : callStatus === 'success' ? (
+                <CheckCircle size={13} />
+              ) : (
+                <BellRing size={13} />
+              )}
+              {callStatus === 'calling' ? 'Llamando...' : callStatus === 'success' ? '¡Notificado!' : callStatus === 'error' ? 'Reintentar' : 'Llamar Mesero'}
+            </button>
+          )}
+
+          <button onClick={handleLogoutClick}
             style={{ background: `${C.pink}12`, border: `1px solid ${C.pink}33`, borderRadius: '8px', padding: '6px 12px', color: C.pink, fontFamily: FONT, fontWeight: '700', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.18s' }}
             onMouseEnter={e => { e.currentTarget.style.background = `${C.pink}22`; e.currentTarget.style.borderColor = C.pink; }}
             onMouseLeave={e => { e.currentTarget.style.background = `${C.pink}12`; e.currentTarget.style.borderColor = `${C.pink}33`; }}>
@@ -99,7 +171,7 @@ function ClientHeader({ totalItems, onLogout }) {
       <ConfirmModal
         isOpen={showLogoutModal}
         onClose={() => setShowLogoutModal(false)}
-        onConfirm={() => { setShowLogoutModal(false); onLogout(); }}
+        onConfirm={() => { setShowLogoutModal(false); logout(); }}
         title="¿Cerrar sesión?"
         message="Se cerrará tu sesión en esta mesa. Tus pedidos activos seguirán en proceso."
       />
@@ -120,10 +192,10 @@ function StatusBadge({ estado }) {
 
 /* ─── ORDER PROGRESS BAR ─────────────────────────────────────── */
 const PROGRESS_STEPS = [
-  { key: 'pendiente',      label: 'Pendiente',   emoji: '🕐', color: '#F59E0B' },
-  { key: 'en_preparacion', label: 'En cocina',    emoji: '👨‍🍳', color: '#F97316' },
-  { key: 'listo',          label: '¡Listo!',      emoji: '✅', color: '#14B8A6' },
-  { key: 'entregado',      label: 'Entregado',    emoji: '🌮', color: '#8B5CF6' },
+  { key: 'pendiente', label: 'Pendiente', emoji: '🕐', color: '#F59E0B' },
+  { key: 'en_preparacion', label: 'En cocina', emoji: '👨‍🍳', color: '#F97316' },
+  { key: 'listo', label: '¡Listo!', emoji: '✅', color: '#14B8A6' },
+  { key: 'entregado', label: 'Entregado', emoji: '🌮', color: '#8B5CF6' },
 ];
 
 function OrderProgressBar({ currentStatus }) {
@@ -135,8 +207,8 @@ function OrderProgressBar({ currentStatus }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', position: 'relative' }}>
         {PROGRESS_STEPS.map((step, idx) => {
           const isCompleted = idx < activeIdx;
-          const isActive    = idx === activeIdx;
-          const isPending   = idx > activeIdx;
+          const isActive = idx === activeIdx;
+          const isPending = idx > activeIdx;
 
           return (
             <div key={step.key} style={{
@@ -391,18 +463,20 @@ function AdminOrderCard({ order, onChangeStatus, onCancel, updating }) {
    VISTA ADMIN
 ═══════════════════════════════════════════════════════════════ */
 function AdminOrdersView() {
-  const [orders,     setOrders]     = useState([]);
-  const [mesas,      setMesas]      = useState([]);
-  const [loading,    setLoading]    = useState(true);
+  const { user, iMesaId, mesaNombre, logout } = useAuth();
+  const { totalItems } = useCart();
+  const [orders, setOrders] = useState([]);
+  const [mesas, setMesas] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [updating,   setUpdating]   = useState(null);
-  const [error,      setError]      = useState('');
-  const [toast,      setToast]      = useState(null);
+  const [updating, setUpdating] = useState(null);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
 
   const [filtroEstado, setFiltroEstado] = useState('todos');
-  const [filtroMesa,   setFiltroMesa]   = useState('todas');
-  const [filtroFecha,  setFiltroFecha]  = useState('');
-  const [search,       setSearch]       = useState('');
+  const [filtroMesa, setFiltroMesa] = useState('todas');
+  const [filtroFecha, setFiltroFecha] = useState('');
+  const [search, setSearch] = useState('');
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -417,7 +491,7 @@ function AdminOrdersView() {
         tablesService.getAll(),
       ]);
       const allOrders = Array.isArray(ordersRes) ? ordersRes : (ordersRes.data || []);
-      const allMesas  = Array.isArray(mesasRes)  ? mesasRes  : (mesasRes.data  || []);
+      const allMesas = Array.isArray(mesasRes) ? mesasRes : (mesasRes.data || []);
       setOrders(allOrders);
       setMesas(allMesas);
     } catch (e) {
@@ -464,7 +538,7 @@ function AdminOrdersView() {
 
   const filtered = orders.filter(o => {
     if (filtroEstado !== 'todos' && o.sEstado !== filtroEstado) return false;
-    if (filtroMesa   !== 'todas' && String(o.iMesaId) !== filtroMesa) return false;
+    if (filtroMesa !== 'todas' && String(o.iMesaId) !== filtroMesa) return false;
     if (filtroFecha) {
       const fechaOrden = new Date(o.createdAt).toISOString().split('T')[0];
       if (fechaOrden !== filtroFecha) return false;
@@ -490,8 +564,9 @@ function AdminOrdersView() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT, color: C.textPrimary }}>
+      <ClientHeader onLogout={logout} />
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px 80px' }}>
-        <Breadcrumb />
+
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
@@ -599,19 +674,22 @@ function AdminOrdersView() {
 ═══════════════════════════════════════════════════════════════ */
 function ClientOrdersView() {
   const navigate = useNavigate();
-  const { loginAt, logout, getMesaId, mesaNombre } = useAuth();
+  const { loginAt, logout, getMesaId, mesaNombre, setMesaEstado } = useAuth();
   const { totalItems } = useCart();
-  const [orders,       setOrders]       = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [refreshing,   setRefreshing]   = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [animatingEnd, setAnimatingEnd] = useState(false);
-  const [error,        setError]        = useState('');
-  const [showPayModal,    setShowPayModal]    = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [ticketItems, setTicketItems] = useState([]);
+  const [ticketTotal, setTicketTotal] = useState(0);
+  const [error, setError] = useState('');
+  const [showPayModal, setShowPayModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // ── Emoji Rating ──
-  const [showEmojiRating, setShowEmojiRating]  = useState(false);
-  const [pendingAction,   setPendingAction]    = useState(null); // 'logout' | 'pay'
+  const [showEmojiRating, setShowEmojiRating] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // 'logout' | 'pay'
 
   const iMesaId = getMesaId();
 
@@ -623,8 +701,13 @@ function ClientOrdersView() {
       return;
     }
     try {
-      const currentToken = localStorage.getItem('mesaSessionToken');
-      const data = await ordersService.getAll({ iMesaId, sTokenSesion: currentToken });
+      let mesaToken = localStorage.getItem('mesaSessionToken');
+      // Saneamiento: Si es nulo o literalmente "null", regenerar uno nuevo
+      if (!mesaToken || mesaToken === 'null' || mesaToken === 'undefined') {
+        mesaToken = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+        localStorage.setItem('mesaSessionToken', mesaToken);
+      }
+      const data = await ordersService.getAll({ iMesaId, sTokenSesion: mesaToken });
       setOrders(data.data || []);
       setError('');
     } catch (e) {
@@ -635,21 +718,70 @@ function ClientOrdersView() {
     }
   }, [iMesaId]);
 
-  const { ejecutar: ejecutarPago, loading: payLoading, error: payError, clearError: clearPayError } = usePedirCuenta({
+  const { ejecutar: ejecutarPedirCuenta, loading: payLoading, error: payError, clearError: clearPayError } = usePedirCuenta({
     iMesaId,
-    onEnPago:     useCallback(() => { setAnimatingEnd(true); setTimeout(() => navigate('/menu'), 2000); }, [navigate]),
-    onDisponible: useCallback(() => { setAnimatingEnd(true); setTimeout(() => navigate('/menu'), 2000); }, [navigate]),
+    onEnPago: useCallback(() => {
+      setTimeout(() => { if (typeof setMesaEstado === 'function') setMesaEstado('en_pago'); setAnimatingEnd(false); }, 2000);
+    }, []),
+    onDisponible: useCallback(() => {
+      setTimeout(() => { 
+        if (typeof setMesaEstado === 'function') setMesaEstado('disponible'); 
+        setAnimatingEnd(false); 
+      }, 2000);
+    }, []),
   });
 
   const handleAbrirPayModal  = () => { clearPayError(); setShowPayModal(true); };
   const handleCerrarPayModal = () => { if (!payLoading) setShowPayModal(false); };
-  const handleConfirmarPago  = async () => { 
-    const ok = await ejecutarPago(); 
+  const handleConfirmarPago  = async () => {
+    setAnimatingEnd(true);
+    const ok = await ejecutarPedirCuenta();
     if (ok) {
       setShowPayModal(false);
-      setPendingAction('pay');
-      setShowEmojiRating(true);
+      try {
+        const token = localStorage.getItem('mesaSessionToken');
+        // Usar siempre el token si existe para no mezclar sesiones
+        const data = await ordersService.getAll({ iMesaId, sTokenSesion: token });
+        let orders = data?.data || [];
+        
+        console.log('MyOrders Ticket - Orders found:', orders.length);
+
+        const formatted = orders
+          .filter(o => o.sEstado !== 'cancelado')
+          .flatMap(order => 
+            (order.items || []).map(i => ({
+              nombre: i.producto?.sNombre || 'Producto',
+              precio: parseFloat(i.dPrecioHistorico || i.producto?.dPrecio || 0),
+              qty: i.iCantidad
+            }))
+          );
+        const total = formatted.reduce((acc, i) => acc + (i.precio * i.qty), 0);
+        console.log('MyOrders Ticket - Items formatted:', formatted.length);
+        
+        if (formatted.length > 0) {
+          setTicketItems(formatted);
+          setTicketTotal(total);
+          setAnimatingEnd(false);
+          setShowEmailModal(true);
+        } else {
+          throw new Error('No items found');
+        }
+      } catch (e) {
+        setAnimatingEnd(false);
+        setPendingAction('pay');
+        setShowEmojiRating(true);
+      }
+    } else {
+      setAnimatingEnd(false);
     }
+  };
+
+
+
+  const handleCloseEmailModal = () => {
+    setShowEmailModal(false);
+    setPendingAction('pay');
+    setShowEmojiRating(true);
   };
 
   const handleLogoutConfirm = () => {
@@ -674,25 +806,22 @@ function ClientOrdersView() {
   }, [iMesaId, loadOrders]);
 
   const handleRefresh = () => { setRefreshing(true); loadOrders(); };
-  const activos     = orders.filter(o => ['pendiente', 'en_preparacion'].includes(o.sEstado));
+  const activos = orders.filter(o => ['pendiente', 'en_preparacion'].includes(o.sEstado));
   const completados = orders.filter(o => ['listo', 'entregado', 'cancelado'].includes(o.sEstado));
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT, color: C.textPrimary }}>
-      {animatingEnd && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: C.orange, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', animation: 'fadeInOut 2s forwards' }}>
-          <div style={{ animation: 'bounceUp 0.6s ease-in-out infinite alternate' }}>
-            <ClipboardList size={100} color="#fff" />
-          </div>
-          <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: '900', marginTop: '24px', textAlign: 'center', padding: '0 20px' }}>Enviando tu cuenta al cajero...</h1>
-        </div>
-      )}
-
+      <EmailTicketModal 
+        isOpen={showEmailModal}
+        onClose={handleCloseEmailModal}
+        items={ticketItems}
+        total={ticketTotal}
+        tableName={localStorage.getItem('meseroMesaNombre') || 'Mesa'}
+        sessionToken={localStorage.getItem('mesaSessionToken')}
+      />
       <ClientHeader totalItems={totalItems} onLogout={logout} />
 
       <main style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px 60px' }}>
-        <Breadcrumb />
-
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -775,12 +904,23 @@ function ClientOrdersView() {
       </button>
 
       <PayConfirmModal isOpen={showPayModal} onConfirm={handleConfirmarPago} onCancel={handleCerrarPayModal} loading={payLoading} error={payError} />
-      
+
       <EmojiRatingModal 
         isOpen={showEmojiRating} 
         iMesaId={iMesaId}
         onComplete={handleEmojiComplete} 
       />
+
+
+
+      {animatingEnd && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: C.orange, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', animation: 'fadeInOut 2s forwards' }}>
+          <div style={{ animation: 'bounceUp 0.6s ease-in-out infinite alternate' }}>
+            <ClipboardList size={100} color="#fff" />
+          </div>
+          <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: '900', marginTop: '24px', animation: 'scaleUp 0.8s ease-out', textAlign: 'center', padding: '0 20px' }}>Enviando tu cuenta al cajero...</h1>
+        </div>
+      )}
 
       <style>{`
         @keyframes spin       { to { transform: rotate(360deg); } }
