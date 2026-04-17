@@ -246,6 +246,7 @@ const CocinerosCard = ({ cook, onEdit, onDelete, onStatusChange }) => {
         </div>
       </div>
     </div>
+    //Se realiza ajuste
   );
 };
 

@@ -13,6 +13,7 @@ import {
   Loader, LogOut, MapPin, Utensils, ClipboardList, Pencil, X,
 } from 'lucide-react';
 import Breadcrumb from '../../../components/layout/Breadcrumb';
+import { EmojiRatingModal } from '../components/EmojiRatingModal';
 
 /* ─── PAPEL PICADO ───────────────────────────────────────────── */
 const PICADO = [C.pink, C.orange, C.yellow, C.teal, C.purple, C.pinkDim, C.orangeDim, C.tealDim];
@@ -307,6 +308,10 @@ const MyOrder = () => {
   const [orderSuccess,   setOrderSuccess]   = useState(false);
   const [orderModalErr,  setOrderModalErr]  = useState('');
   const [showPayModal,   setShowPayModal]   = useState(false);
+  
+  // ── Emoji Rating ──
+  const [showEmojiRating, setShowEmojiRating]  = useState(false);
+  const [pendingAction,   setPendingAction]    = useState(null); // 'logout' | 'pay'
 
   const iMesaId = getMesaId();
 
@@ -318,7 +323,27 @@ const MyOrder = () => {
 
   const handleAbrirPayModal  = () => { clearPayError(); setShowPayModal(true); };
   const handleCerrarPayModal = () => { if (!payLoading) setShowPayModal(false); };
-  const handleConfirmarPago  = async () => { const ok = await ejecutarPago(); if (ok) setShowPayModal(false); };
+  const handleConfirmarPago  = async () => { 
+    const ok = await ejecutarPago(); 
+    if (ok) {
+      setShowPayModal(false);
+      setPendingAction('pay');
+      setShowEmojiRating(true);
+    }
+  };
+
+  const handleLogoutRequest = () => {
+    setPendingAction('logout');
+    setShowEmojiRating(true);
+  };
+
+  const handleEmojiComplete = () => {
+    setShowEmojiRating(false);
+    if (pendingAction === 'logout') {
+      logout();
+    }
+    setPendingAction(null);
+  };
 
   const nonEmptyPlates = plates.filter(p => p.items.length > 0);
 
@@ -348,7 +373,7 @@ const MyOrder = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT, color: C.textPrimary }}>
-      <ClientHeader totalItems={totalItems} onLogout={logout} />
+      <ClientHeader totalItems={totalItems} onLogout={handleLogoutRequest} />
 
       <main style={{ maxWidth: '720px', margin: '0 auto', padding: '28px 24px 140px' }}>
         <Breadcrumb />
@@ -531,6 +556,12 @@ const MyOrder = () => {
       )}
 
       <PayConfirmModal isOpen={showPayModal} onConfirm={handleConfirmarPago} onCancel={handleCerrarPayModal} loading={payLoading} error={payError} />
+
+      <EmojiRatingModal 
+        isOpen={showEmojiRating} 
+        iMesaId={iMesaId}
+        onComplete={handleEmojiComplete} 
+      />
 
       <style>{`
         @keyframes spin     { to { transform: rotate(360deg); } }
